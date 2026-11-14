@@ -69,21 +69,23 @@ jobs:
           key: ${{ matrix.platform }}-bun-${{ hashFiles('**/bun.lock') }}
 
       - name: Cache tauri-cli
+        id: tauri_cli_cache
         uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/cargo-tauri
             ~/.cargo/bin/cargo-tauri.exe
-          key: ${{ matrix.platform }}-tauri-cli-6620118f0fe85472abfdccea8d99fd0ec9447c3f
+          key: v2-${{ matrix.platform }}-tauri-cli-6620118f0fe85472abfdccea8d99fd0ec9447c3f
 
       - name: Install dependencies
         shell: bash
         run: |
-          if cargo tauri --version >/dev/null 2>&1; then
+          if [ "${{ steps.tauri_cli_cache.outputs.cache-hit }}" = "true" ]; then
             bun install --frozen-lockfile --ignore-scripts
           else
             bun install --frozen-lockfile
           fi
+          cargo tauri --version
 
       - name: Generate release changelog
         id: release_notes
