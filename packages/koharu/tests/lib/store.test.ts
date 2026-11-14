@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { receiveDownload, useKoharuStore } from '@/lib/store'
+import { defaultShortcuts, loadShortcuts, receiveDownload, useKoharuStore } from '@/lib/store'
 
 describe('editor state', () => {
   it('retains failed downloads until they are dismissed', () => {
@@ -24,5 +24,11 @@ describe('editor state', () => {
 
   it('defaults paint brush color to pure white (#FFFFFF)', () => {
     expect(useKoharuStore.getState().brush.color).toBe('#FFFFFF')
+  })
+
+  it('persists customized shortcuts across reloads', () => {
+    useKoharuStore.getState().setShortcut('eraser', 'X')
+    expect(useKoharuStore.getState().shortcuts.eraser).toBe('x')
+    expect(loadShortcuts()).toEqual({ ...defaultShortcuts, eraser: 'x' })
   })
 })

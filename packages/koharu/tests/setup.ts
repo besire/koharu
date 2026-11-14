@@ -68,6 +68,7 @@ Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), writable: true }
 const initial = useKoharuStore.getState()
 beforeEach(() => {
   queryClient.clear()
+  window.localStorage.removeItem('koharu.shortcuts')
   useKoharuStore.setState({
     ...initial,
     initialized: false,
