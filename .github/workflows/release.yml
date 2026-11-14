@@ -74,7 +74,7 @@ jobs:
           path: |
             ~/.cargo/bin/cargo-tauri
             ~/.cargo/bin/cargo-tauri.exe
-          key: ${{ matrix.platform }}-tauri-cli-78f49ba3993fed5a1b921235c547731006ad2a74
+          key: ${{ matrix.platform }}-tauri-cli-6620118f0fe85472abfdccea8d99fd0ec9447c3f
 
       - name: Install dependencies
         shell: bash
