@@ -420,7 +420,13 @@
       "credentialLabel": "API key لـ {{provider}}",
       "description": "اربط مزوّدي الترجمة والنماذج اللغوية.",
       "notConfigured": "غير مهيّأ",
-      "title": "المزوّدون"
+      "title": "المزوّدون",
+      "structuredOutput": "الإخراج المهيكل",
+      "structuredOutputModes": {
+        "json_schema": "مخطط JSON",
+        "json_object": "كائن JSON",
+        "disabled": "معطل"
+      }
     },
     "shortcuts": {
       "description": "تتوفّر اختصارات المفتاح الواحد عندما لا يكون حقل النص قيد التركيز.",

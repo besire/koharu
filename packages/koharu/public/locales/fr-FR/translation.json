@@ -420,7 +420,13 @@
       "credentialLabel": "Identifiants {{provider}}",
       "description": "Connectez des fournisseurs de traduction et de modèles de langage.",
       "notConfigured": "Non configuré",
-      "title": "Fournisseurs"
+      "title": "Fournisseurs",
+      "structuredOutput": "Sortie structurée",
+      "structuredOutputModes": {
+        "json_schema": "Schéma JSON",
+        "json_object": "Objet JSON",
+        "disabled": "Désactivé"
+      }
     },
     "shortcuts": {
       "description": "Les raccourcis à une touche sont disponibles lorsqu’aucun champ de texte n’a le focus.",
