@@ -63,7 +63,9 @@
     "brushColor": "لون الفرشاة",
     "hexCode": "رمز اللون الست عشري",
     "sampleCanvas": "اختيار لون من اللوحة",
-    "transparent": "شفاف"
+    "transparent": "شفاف",
+    "recent": "الألوان الأخيرة",
+    "recentColor": "اللون الأخير {{color}}"
   },
   "common": {
     "back": "رجوع",

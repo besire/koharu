@@ -63,7 +63,9 @@
     "brushColor": "Couleur du pinceau",
     "hexCode": "Code couleur hexadécimal",
     "sampleCanvas": "Prélever une couleur sur le canevas",
-    "transparent": "Transparent"
+    "transparent": "Transparent",
+    "recent": "Couleurs récentes",
+    "recentColor": "Couleur récente {{color}}"
   },
   "common": {
     "back": "Retour",
