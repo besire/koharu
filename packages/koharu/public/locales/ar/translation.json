@@ -309,7 +309,8 @@
     "instructions": "تعليمات الترجمة",
     "instructionsPlaceholder": "إرشادات اختيارية للنبرة والأسماء والتنسيق.",
     "targetLanguage": "اللغة المستهدفة",
-    "title": "مخرجات الترجمة"
+    "title": "مخرجات الترجمة",
+    "loadPreset": "تحميل إعداد مسبق"
   },
   "phase": {
     "detection": "الكشف",
@@ -458,7 +459,14 @@
       "targetLanguageDescription": "اختر اللغة التي تُترجم إليها النصوص.",
       "title": "الترجمة",
       "translationModel": "نموذج الترجمة",
-      "translationModelDescription": "اختر النموذج المستخدم لترجمة النصوص."
+      "translationModelDescription": "اختر النموذج المستخدم لترجمة النصوص.",
+      "deletePreset": "حذف الإعداد المسبق",
+      "noPresets": "لا توجد إعدادات مسبقة محفوظة",
+      "presetName": "اسم الإعداد المسبق",
+      "presetNamePlaceholder": "اسم للتعليمات الحالية",
+      "presetsDescription": "احفظ التعليمات الحالية باسم لتحميلها لاحقًا.",
+      "savePreset": "حفظ",
+      "savedPresets": "الإعدادات المسبقة المحفوظة"
     },
     "typesetting": {
       "addFamily": "إضافة عائلة خطوط",

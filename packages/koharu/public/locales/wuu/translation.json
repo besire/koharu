@@ -309,7 +309,8 @@
     "instructions": "翻译说明",
     "instructionsPlaceholder": "好填语气、名字搭格式个说明，也好弗填。",
     "targetLanguage": "目标语言",
-    "title": "翻译输出"
+    "title": "翻译输出",
+    "loadPreset": "加载预设"
   },
   "phase": {
     "detection": "检测",
@@ -458,7 +459,14 @@
       "targetLanguageDescription": "选译文要用个目标语言。",
       "title": "译文",
       "translationModel": "翻译模型",
-      "translationModelDescription": "选用来翻译文本个模型。"
+      "translationModelDescription": "选用来翻译文本个模型。",
+      "deletePreset": "删脱预设",
+      "noPresets": "还呒没保存过个预设",
+      "presetName": "预设名字",
+      "presetNamePlaceholder": "帮当前说明起个名字",
+      "presetsDescription": "拿当前说明存成有名字个预设，过后好再加载。",
+      "savePreset": "保存",
+      "savedPresets": "保存好个预设"
     },
     "typesetting": {
       "addFamily": "添加字体系列",

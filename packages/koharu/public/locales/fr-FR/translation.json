@@ -309,7 +309,8 @@
     "instructions": "Instructions de traduction",
     "instructionsPlaceholder": "Indications facultatives sur le ton, les noms et la mise en forme.",
     "targetLanguage": "Langue cible",
-    "title": "Sortie de traduction"
+    "title": "Sortie de traduction",
+    "loadPreset": "Charger un préréglage"
   },
   "phase": {
     "detection": "Détection",
@@ -458,7 +459,14 @@
       "targetLanguageDescription": "Choisissez la langue dans laquelle traduire le texte.",
       "title": "Traduction",
       "translationModel": "Modèle de traduction",
-      "translationModelDescription": "Choisissez le modèle utilisé pour traduire le texte."
+      "translationModelDescription": "Choisissez le modèle utilisé pour traduire le texte.",
+      "deletePreset": "Supprimer le préréglage",
+      "noPresets": "Aucun préréglage enregistré",
+      "presetName": "Nom du préréglage",
+      "presetNamePlaceholder": "Nom pour les instructions actuelles",
+      "presetsDescription": "Enregistrez les instructions actuelles sous un nom pour les recharger plus tard.",
+      "savePreset": "Enregistrer",
+      "savedPresets": "Préréglages enregistrés"
     },
     "typesetting": {
       "addFamily": "Ajouter une famille de polices",
