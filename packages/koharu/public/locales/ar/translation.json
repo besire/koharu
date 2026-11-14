@@ -243,7 +243,10 @@
     "sourceLabel": "النص المصدر لـ {{name}}",
     "textName": "نص {{index}}",
     "title": "الطبقات",
-    "translationLabel": "ترجمة {{name}}"
+    "translationLabel": "ترجمة {{name}}",
+    "ocr": "تشغيل التعرف الضوئي لـ {{name}}",
+    "ocrBlocked": "لم يتم تشغيل التعرف الضوئي",
+    "ocrRequiresEmptySource": "امسح النص الأصلي قبل تشغيل التعرف الضوئي."
   },
   "menu": {
     "about": "عن البرنامج",

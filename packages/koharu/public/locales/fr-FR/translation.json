@@ -243,7 +243,10 @@
     "sourceLabel": "Texte source de {{name}}",
     "textName": "Texte {{index}}",
     "title": "Calques",
-    "translationLabel": "Traduction de {{name}}"
+    "translationLabel": "Traduction de {{name}}",
+    "ocr": "Exécuter l'OCR pour {{name}}",
+    "ocrBlocked": "OCR non exécuté",
+    "ocrRequiresEmptySource": "Effacez le texte source avant de lancer l'OCR."
   },
   "menu": {
     "about": "À propos",

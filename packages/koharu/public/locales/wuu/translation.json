@@ -243,7 +243,10 @@
     "sourceLabel": "{{name}} 个原文",
     "textName": "文本 {{index}}",
     "title": "图层",
-    "translationLabel": "{{name}} 个译文"
+    "translationLabel": "{{name}} 个译文",
+    "ocr": "对 {{name}} 运行 OCR",
+    "ocrBlocked": "呒没运行 OCR",
+    "ocrRequiresEmptySource": "运行 OCR 之前请先清空源文本。"
   },
   "menu": {
     "about": "关于",
