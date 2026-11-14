@@ -41,7 +41,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: koharu-app-${{ matrix.platform }}
-          save-if: false
+          save-if: true
 
       - name: Install macOS CEF helper targets
         if: startsWith(matrix.platform, 'macos')
@@ -68,19 +68,32 @@ jobs:
           path: ~/.bun/install/cache
           key: ${{ matrix.platform }}-bun-${{ hashFiles('**/bun.lock') }}
 
+      - name: Cache tauri-cli
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-tauri
+            ~/.cargo/bin/cargo-tauri.exe
+          key: ${{ matrix.platform }}-tauri-cli-78f49ba3993fed5a1b921235c547731006ad2a74
+
       - name: Install dependencies
-        run: bun install
+        shell: bash
+        run: |
+          if cargo tauri --version >/dev/null 2>&1; then
+            bun install --frozen-lockfile --ignore-scripts
+          else
+            bun install --frozen-lockfile
+          fi
 
       - name: Generate release changelog
         id: release_notes
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          git fetch https://github.com/koharu-rs/koharu.git refs/tags/0.83.5:refs/tags/0.83.5 --no-tags || true
           {
-            echo 'release_body<<EOF'
-            bun git-cliff --current --strip all
-            echo 'EOF'
+            echo 'release_body<<RELEASE_NOTES_EOF'
+            bun git-cliff --offline --current --strip all
+            echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
       - uses: tauri-apps/tauri-action@v1
