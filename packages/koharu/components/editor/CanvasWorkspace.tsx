@@ -8,10 +8,10 @@ import { CanvasCommandBar } from '@/components/editor/CanvasCommandBar'
 import { StatusBar } from '@/components/editor/StatusBar'
 import { ToolBar } from '@/components/editor/ToolBar'
 import { call, dispatch } from '@/lib/backend'
-import { findLayer, isBlockLayer, isTextLayer, plainText } from '@/lib/document'
+import { findLayer, isBlockLayer, isLockedLayer, isTextLayer, plainText } from '@/lib/document'
 import { cssBox, textBounds } from '@/lib/geometry'
 import { usePage } from '@/lib/queries'
-import { deleteLayers, setText } from '@/lib/scene'
+import { deleteLayers, nudgeLayers, setText } from '@/lib/scene'
 import { hexToRgba, useKoharuStore, type CanvasTool } from '@/lib/store'
 import { commands, type Layer, type Rgba, type Text } from '@koharu/ipc/protocol'
 
@@ -53,7 +53,11 @@ export function CanvasWorkspace() {
   useEffect(() => dispatch(commands.setCanvasTool, tool), [tool])
 
   useEffect(
-    () => dispatch(commands.setCanvasBrush, { diameter: brush.diameter, color: hexToRgba(brush.color) }),
+    () =>
+      dispatch(commands.setCanvasBrush, {
+        diameter: brush.diameter,
+        color: hexToRgba(brush.color),
+      }),
     [brush],
   )
 
@@ -83,7 +87,7 @@ export function CanvasWorkspace() {
 
   useEffect(() => {
     const editable = (target: EventTarget | null) =>
-      target instanceof HTMLInputElement ||
+      (target instanceof HTMLInputElement && target.type !== 'range') ||
       target instanceof HTMLTextAreaElement ||
       (target instanceof HTMLElement && target.isContentEditable)
     // The tool Space replaced, put back when it's released, as Photoshop's hand tool.
@@ -94,7 +98,7 @@ export function CanvasWorkspace() {
         event.preventDefault()
         return
       }
-      if (editable(event.target)) return
+      if (event.defaultPrevented || event.isComposing || editable(event.target)) return
       const state = useKoharuStore.getState()
       if (event.code === 'Space') {
         event.preventDefault()
@@ -119,6 +123,30 @@ export function CanvasWorkspace() {
         event.preventDefault()
         dispatch(deleteLayers, state.selectedLayers)
         return
+      }
+      if (!command && !event.altKey && page && state.selectedLayers.length > 0) {
+        const step = event.shiftKey ? 10 : 1
+        const delta =
+          event.key === 'ArrowLeft'
+            ? [-step, 0]
+            : event.key === 'ArrowRight'
+              ? [step, 0]
+              : event.key === 'ArrowUp'
+                ? [0, -step]
+                : event.key === 'ArrowDown'
+                  ? [0, step]
+                  : null
+        if (delta) {
+          const unlocked = state.selectedLayers.filter((id) => {
+            const placed = findLayer(page.layers, id)
+            return placed !== undefined && !isLockedLayer(placed)
+          })
+          if (unlocked.length > 0) {
+            event.preventDefault()
+            dispatch(nudgeLayers, unlocked, delta[0]!, delta[1]!)
+            return
+          }
+        }
       }
       if (event.key.toLowerCase() === state.shortcuts.fit) {
         dispatch(commands.fitCanvas)

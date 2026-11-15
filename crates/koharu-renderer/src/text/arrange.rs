@@ -106,6 +106,7 @@ pub(super) fn arrange(
             align: styled.align,
             rtl: shaped.rtl_at(0),
             line_height: styled.line_height,
+            letter_spacing: styled.letter_spacing,
             uncovered: shaped.uncovered.clone(),
         },
         bounds: bounds
@@ -393,6 +394,7 @@ mod tests {
             vertical: false,
             align: Align::Start,
             line_height: 1.2,
+            letter_spacing: 0.0,
             hyphenation: None,
             frame: Frame::Point,
         }

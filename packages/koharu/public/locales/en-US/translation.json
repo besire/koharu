@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "Brush color",
     "hexCode": "Hex color code",
+    "recent": "Recent colors",
     "sampleCanvas": "Pick color from canvas",
     "transparent": "Transparent"
   },
@@ -86,12 +87,14 @@
   },
   "fontPicker": {
     "choose": "Choose a font",
+    "favorite": "Pin {{family}}",
     "fontCount": "{{count}} fonts",
     "fontCount_one": "{{count}} font",
     "fontCount_other": "{{count}} fonts",
     "fonts": "Fonts",
     "noResults": "No fonts match this search",
-    "search": "Search fonts"
+    "search": "Search fonts",
+    "unfavorite": "Unpin {{family}}"
   },
   "inference": {
     "currentPage": "Current page",
@@ -141,6 +144,8 @@
     "chooseFontSize": "Choose font size",
     "color": "Color",
     "decreaseBorderWidth": "Decrease border width",
+    "decreaseLetterSpacing": "Decrease letter spacing",
+    "decreaseLineHeight": "Decrease line height",
     "direction": "Direction",
     "font": "Font",
     "fontSize": "Font size",
@@ -153,7 +158,14 @@
     "fontWeight": "Font weight",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Increase border width",
+    "increaseLetterSpacing": "Increase letter spacing",
+    "increaseLineHeight": "Increase line height",
+    "letterSpacing": "Spacing",
+    "lineHeight": "Leading",
+    "note": "Note",
+    "notePlaceholder": "Context or instructions for translating this block…",
     "opacity": "Opacity",
+    "runOcr": "Run OCR",
     "selectPage": "Select a page to inspect its layers.",
     "size": "Size",
     "source": "Source text",
@@ -201,6 +213,7 @@
     "locked": "Locked",
     "moveDown": "Move {{name}} down",
     "moveUp": "Move {{name}} up",
+    "noteLabel": "{{name}} translator note",
     "opacityLabel": "{{name}} opacity",
     "show": "Show {{name}}",
     "sourceLabel": "{{name}} source text",
@@ -236,8 +249,10 @@
     "view": "View"
   },
   "model": {
+    "autoDetect": "Auto-detect",
     "baseUrl": "Base URL",
     "default": "Default",
+    "sourceLanguage": "Source language",
     "targetLanguage": "Target language"
   },
   "modelPicker": {
@@ -266,6 +281,7 @@
     "selected": "{{count}} selected"
   },
   "outputPicker": {
+    "sourceLanguage": "Source language",
     "targetLanguage": "Target language",
     "title": "Translation output"
   },
@@ -374,15 +390,27 @@
     },
     "title": "Settings",
     "translation": {
+      "addTerm": "Add term",
+      "deletePreset": "Delete preset",
       "description": "Choose any configured provider model, then apply one shared set of translation and generation options.",
+      "glossary": "Glossary",
+      "glossaryDescription": "Keep character names and recurring terms consistent across pages.",
+      "glossaryNote": "Optional note",
+      "glossarySource": "Source term",
+      "glossaryTarget": "Preferred translation",
       "model": "Model",
       "modelDescription": "Provider labels identify where each model runs; connections are configured separately.",
       "output": "Output",
+      "presetName": "Preset name",
+      "presets": "Saved presets",
       "prompt": "System prompt",
       "promptDescription": "Instructions for the translation model; {target} stands for the target language.",
       "promptNeedsTarget": "The prompt must include {target}.",
       "reasoning": "Reasoning",
       "reasoningDescription": "Use model reasoning during translation.",
+      "removeTerm": "Remove term",
+      "savePreset": "Save preset",
+      "sourceLanguageDescription": "Override automatic source-language detection when needed.",
       "targetLanguageDescription": "Choose the language to translate text into.",
       "title": "Translation",
       "translationModel": "Translation model",

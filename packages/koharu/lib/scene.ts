@@ -86,6 +86,35 @@ export function updateLayer(layer: LayerId, patch: Value): Promise<Change> {
   return edit('update_layer', [{ op: 'update_layer', layer, patch }])
 }
 
+/** Moves layers by `(dx, dy)` page pixels in one undo step. */
+export function nudgeLayers(layers: LayerId[], dx: number, dy: number): Promise<Change> {
+  return edit(
+    'move',
+    layers.map((layer) => ({
+      op: 'transform_layer',
+      layer,
+      transform: [
+        [1, 0, dx],
+        [0, 1, dy],
+      ],
+    })),
+  )
+}
+
+/** Sets or clears a block's per-layer translator note (`attributes.koharu.note`). */
+export function setLayerNote(layer: LayerId, note: string): Promise<Change> {
+  const trimmed = note.trim()
+  return edit('update_layer', [
+    {
+      op: 'set_attribute',
+      layer,
+      namespace: 'koharu',
+      key: 'note',
+      value: trimmed ? trimmed : null,
+    },
+  ])
+}
+
 export function deletePages(pages: PageId[]): Promise<Change> {
   return edit(
     'delete_pages',

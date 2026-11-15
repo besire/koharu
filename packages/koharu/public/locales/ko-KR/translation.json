@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "브러시 색상",
     "hexCode": "16진수 색상 코드",
+    "recent": "최근 사용한 색상",
     "sampleCanvas": "캔버스에서 색상 선택",
     "transparent": "투명"
   },
@@ -86,12 +87,14 @@
   },
   "fontPicker": {
     "choose": "글꼴 선택",
+    "favorite": "{{family}} 고정",
     "fontCount": "글꼴 {{count}}개",
     "fontCount_one": "글꼴 {{count}}개",
     "fontCount_other": "글꼴 {{count}}개",
     "fonts": "글꼴",
     "noResults": "검색과 일치하는 글꼴이 없습니다",
-    "search": "글꼴 검색"
+    "search": "글꼴 검색",
+    "unfavorite": "{{family}} 고정 해제"
   },
   "inference": {
     "currentPage": "현재 페이지",
@@ -141,6 +144,8 @@
     "chooseFontSize": "글꼴 크기 선택",
     "color": "색상",
     "decreaseBorderWidth": "테두리 너비 줄이기",
+    "decreaseLetterSpacing": "자간 줄이기",
+    "decreaseLineHeight": "행간 줄이기",
     "direction": "방향",
     "font": "글꼴",
     "fontSize": "글꼴 크기",
@@ -153,7 +158,14 @@
     "fontWeight": "글꼴 굵기",
     "horizontal": "가로쓰기",
     "increaseBorderWidth": "테두리 너비 늘리기",
+    "increaseLetterSpacing": "자간 늘리기",
+    "increaseLineHeight": "행간 늘리기",
+    "letterSpacing": "자간",
+    "lineHeight": "행간",
+    "note": "번역 메모",
+    "notePlaceholder": "이 텍스트 블록의 맥락이나 번역 지침…",
     "opacity": "불투명도",
+    "runOcr": "OCR 실행",
     "selectPage": "레이어를 확인할 페이지를 선택하세요.",
     "size": "크기",
     "source": "원문",
@@ -201,6 +213,7 @@
     "locked": "잠김",
     "moveDown": "{{name}} 아래로 이동",
     "moveUp": "{{name}} 위로 이동",
+    "noteLabel": "{{name}} 번역 메모",
     "opacityLabel": "{{name}} 불투명도",
     "show": "{{name}} 표시",
     "sourceLabel": "{{name}} 원문",
@@ -236,8 +249,10 @@
     "view": "보기"
   },
   "model": {
+    "autoDetect": "자동 감지",
     "baseUrl": "기본 URL",
     "default": "기본값",
+    "sourceLanguage": "원문 언어",
     "targetLanguage": "대상 언어"
   },
   "modelPicker": {
@@ -266,6 +281,7 @@
     "selected": "{{count}}개 선택됨"
   },
   "outputPicker": {
+    "sourceLanguage": "원문 언어",
     "targetLanguage": "대상 언어",
     "title": "번역 출력"
   },
@@ -374,15 +390,27 @@
     },
     "title": "설정",
     "translation": {
+      "addTerm": "용어 추가",
+      "deletePreset": "프리셋 삭제",
       "description": "설정된 제공자의 모델을 선택하고 공통 번역 및 생성 옵션을 적용합니다.",
+      "glossary": "용어집",
+      "glossaryDescription": "페이지 전반에서 등장인물 이름과 반복 용어를 일관되게 유지합니다.",
+      "glossaryNote": "메모 (선택)",
+      "glossarySource": "원문 용어",
+      "glossaryTarget": "번역어",
       "model": "모델",
       "modelDescription": "제공자 레이블은 각 모델의 실행 위치를 나타내며 연결은 별도로 설정합니다.",
       "output": "출력",
+      "presetName": "프리셋 이름",
+      "presets": "저장된 프리셋",
       "prompt": "시스템 프롬프트",
       "promptDescription": "번역 모델에 보내는 지시입니다. {target}은(는) 대상 언어로 바뀝니다.",
       "promptNeedsTarget": "프롬프트에 {target}을(를) 포함해야 합니다.",
       "reasoning": "추론",
       "reasoningDescription": "번역할 때 모델 추론을 사용합니다.",
+      "removeTerm": "용어 제거",
+      "savePreset": "프리셋 저장",
+      "sourceLanguageDescription": "필요할 때 원문 언어 자동 감지를 수동으로 지정합니다.",
       "targetLanguageDescription": "텍스트를 번역할 언어를 선택합니다.",
       "title": "번역",
       "translationModel": "번역 모델",

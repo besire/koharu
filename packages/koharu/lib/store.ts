@@ -105,6 +105,39 @@ export const defaultShortcuts: Shortcuts = {
   fit: '0',
 }
 
+const SHORTCUTS_STORAGE_KEY = 'koharu.shortcuts'
+
+function loadShortcuts(): Shortcuts {
+  if (typeof window === 'undefined') return defaultShortcuts
+  try {
+    const raw = window.localStorage.getItem(SHORTCUTS_STORAGE_KEY)
+    if (!raw) return defaultShortcuts
+    const parsed = JSON.parse(raw) as Partial<Record<ShortcutAction, unknown>>
+    const next: Shortcuts = { ...defaultShortcuts }
+    for (const action of Object.keys(defaultShortcuts) as ShortcutAction[]) {
+      const value = parsed[action]
+      if (typeof value === 'string' && value.length > 0) {
+        next[action] = value.toLowerCase().slice(0, 1)
+      }
+    }
+    return next
+  } catch {
+    return defaultShortcuts
+  }
+}
+
+/** Prunes deleted page IDs from `selectedPages`, falling back to `activePage` when none remain. */
+export function reconcileSelectedPages(
+  selectedPages: PageId[],
+  pages: readonly { id: PageId }[],
+  activePage: PageId | null | undefined,
+): PageId[] {
+  const validIds = new Set(pages.map((page) => page.id))
+  const pruned = selectedPages.filter((id) => validIds.has(id))
+  if (pruned.length > 0) return pruned
+  return activePage && validIds.has(activePage) ? [activePage] : []
+}
+
 export const useKoharuStore = create<KoharuStore>()((set) => ({
   initialized: false,
   preferences: null,
@@ -122,7 +155,7 @@ export const useKoharuStore = create<KoharuStore>()((set) => ({
   processingScope: 'selected-pages',
   processingStages: [...pipelineStages],
   settingsOpen: false,
-  shortcuts: defaultShortcuts,
+  shortcuts: loadShortcuts(),
   selectPages: (selectedPages) => set({ selectedPages: [...new Set(selectedPages)] }),
   showInspector: (inspector) => set({ inspector }),
   setProcessingScope: (processingScope) => set({ processingScope }),
@@ -132,9 +165,15 @@ export const useKoharuStore = create<KoharuStore>()((set) => ({
   setTool: (tool) => set({ tool }),
   setBrush: (brush) => set({ brush }),
   setShortcut: (action, key) =>
-    set((state) => ({
-      shortcuts: { ...state.shortcuts, [action]: key.toLowerCase().slice(0, 1) },
-    })),
+    set((state) => {
+      const shortcuts = { ...state.shortcuts, [action]: key.toLowerCase().slice(0, 1) }
+      try {
+        window.localStorage.setItem(SHORTCUTS_STORAGE_KEY, JSON.stringify(shortcuts))
+      } catch {
+        // Ignore storage write errors in restricted webviews.
+      }
+      return { shortcuts }
+    }),
   dismissJob: (id) =>
     set((state) => {
       const jobs = { ...state.jobs }

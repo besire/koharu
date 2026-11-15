@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "Цвет кисти",
     "hexCode": "Шестнадцатеричный код цвета",
+    "recent": "Недавние цвета",
     "sampleCanvas": "Выбрать цвет с холста",
     "transparent": "Прозрачный"
   },
@@ -86,12 +87,14 @@
   },
   "fontPicker": {
     "choose": "Выбрать шрифт",
+    "favorite": "Закрепить {{family}}",
     "fontCount": "Шрифтов: {{count}}",
     "fontCount_one": "Шрифт: {{count}}",
     "fontCount_other": "Шрифтов: {{count}}",
     "fonts": "Шрифты",
     "noResults": "Нет шрифтов, соответствующих поиску",
-    "search": "Искать шрифты"
+    "search": "Искать шрифты",
+    "unfavorite": "Открепить {{family}}"
   },
   "inference": {
     "currentPage": "Текущая страница",
@@ -141,6 +144,8 @@
     "chooseFontSize": "Выбрать размер шрифта",
     "color": "Цвет",
     "decreaseBorderWidth": "Уменьшить ширину обводки",
+    "decreaseLetterSpacing": "Уменьшить межбуквенный интервал",
+    "decreaseLineHeight": "Уменьшить межстрочный интервал",
     "direction": "Направление",
     "font": "Шрифт",
     "fontSize": "Размер шрифта",
@@ -153,7 +158,14 @@
     "fontWeight": "Насыщенность шрифта",
     "horizontal": "Горизонтально",
     "increaseBorderWidth": "Увеличить ширину обводки",
+    "increaseLetterSpacing": "Увеличить межбуквенный интервал",
+    "increaseLineHeight": "Увеличить межстрочный интервал",
+    "letterSpacing": "Трекинг",
+    "lineHeight": "Интерлиньяж",
+    "note": "Заметка",
+    "notePlaceholder": "Контекст или указания для перевода этого блока…",
     "opacity": "Непрозрачность",
+    "runOcr": "Запустить OCR",
     "selectPage": "Выберите страницу для просмотра её слоёв.",
     "size": "Размер",
     "source": "Исходный текст",
@@ -201,6 +213,7 @@
     "locked": "Заблокировано",
     "moveDown": "Переместить {{name}} вниз",
     "moveUp": "Переместить {{name}} вверх",
+    "noteLabel": "Заметка переводчика для {{name}}",
     "opacityLabel": "Непрозрачность {{name}}",
     "show": "Показать {{name}}",
     "sourceLabel": "Исходный текст {{name}}",
@@ -236,8 +249,10 @@
     "view": "Вид"
   },
   "model": {
+    "autoDetect": "Автоопределение",
     "baseUrl": "Базовый URL",
     "default": "По умолчанию",
+    "sourceLanguage": "Исходный язык",
     "targetLanguage": "Язык перевода"
   },
   "modelPicker": {
@@ -266,6 +281,7 @@
     "selected": "Выбрано: {{count}}"
   },
   "outputPicker": {
+    "sourceLanguage": "Исходный язык",
     "targetLanguage": "Язык перевода",
     "title": "Вывод перевода"
   },
@@ -374,15 +390,27 @@
     },
     "title": "Настройки",
     "translation": {
+      "addTerm": "Добавить термин",
+      "deletePreset": "Удалить пресет",
       "description": "Выберите модель настроенного провайдера и примените общие параметры перевода и генерации.",
+      "glossary": "Глоссарий",
+      "glossaryDescription": "Сохраняйте единообразие имён персонажей и повторяющихся терминов.",
+      "glossaryNote": "Примечание (необязательно)",
+      "glossarySource": "Исходный термин",
+      "glossaryTarget": "Перевод",
       "model": "Модель",
       "modelDescription": "Метки провайдеров показывают, где работает модель; подключения настраиваются отдельно.",
       "output": "Результат",
+      "presetName": "Название пресета",
+      "presets": "Сохранённые пресеты",
       "prompt": "Системный промпт",
       "promptDescription": "Инструкции для модели перевода; {target} заменяется целевым языком.",
       "promptNeedsTarget": "Промпт должен содержать {target}.",
       "reasoning": "Рассуждение",
       "reasoningDescription": "Использует рассуждение модели во время перевода.",
+      "removeTerm": "Удалить термин",
+      "savePreset": "Сохранить пресет",
+      "sourceLanguageDescription": "При необходимости переопределяет автоопределение исходного языка.",
       "targetLanguageDescription": "Выберите язык, на который нужно перевести текст.",
       "title": "Перевод",
       "translationModel": "Модель перевода",

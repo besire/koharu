@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,8 +12,10 @@ import {
   PreferenceSection,
 } from '@/components/preferences/PreferenceFields'
 import { modelName, orderedLanguageChoices, REASONING, vendorOf } from '@/lib/translation'
-import type { Model, TranslatorConfig } from '@koharu/ipc/protocol'
+import type { GlossaryEntry, Model, TranslatorConfig } from '@koharu/ipc/protocol'
 import { Badge } from '@koharu/ui/components/badge'
+import { Button } from '@koharu/ui/components/button'
+import { Input } from '@koharu/ui/components/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@koharu/ui/components/popover'
 import {
   Select,
@@ -44,9 +46,28 @@ export function TranslationPreferences({
 }) {
   const { t, i18n } = useTranslation()
   const [modelOpen, setModelOpen] = useState(false)
+  const [presetName, setPresetName] = useState('')
   const languageChoices = useMemo(() => orderedLanguageChoices(i18n.language), [i18n.language])
+  const sourceItems = useMemo(
+    () =>
+      Object.fromEntries([
+        ['auto', t('model.autoDetect')],
+        ...languageChoices.map((language) => [language.tag, language.name]),
+      ]),
+    [languageChoices, t],
+  )
   const model = value.model ?? ''
   const reasoning = value.reasoning ?? 'default'
+  const presets = value.presets ?? []
+  const glossary = value.glossary ?? []
+  const activePreset = presets.find((preset) => preset.prompt === (value.prompt ?? ''))?.name ?? ''
+
+  const updateGlossary = (index: number, patch: Partial<GlossaryEntry>) => {
+    const next = glossary.map((entry, candidate) =>
+      candidate === index ? { ...entry, ...patch } : entry,
+    )
+    onChange({ ...value, glossary: next })
+  }
 
   return (
     <PreferencePage
@@ -140,6 +161,33 @@ export function TranslationPreferences({
 
       <PreferenceSection title={t('settings.translation.output')}>
         <PreferenceRow
+          title={t('model.sourceLanguage')}
+          description={t('settings.translation.sourceLanguageDescription')}
+        >
+          <Select
+            value={value.source ?? 'auto'}
+            items={sourceItems}
+            onValueChange={(source) =>
+              source && onChange({ ...value, source: source === 'auto' ? null : source })
+            }
+          >
+            <SelectTrigger
+              aria-label={t('model.sourceLanguage')}
+              className='h-8 w-full text-[11px]'
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='auto'>{t('model.autoDetect')}</SelectItem>
+              {languageChoices.map((language) => (
+                <SelectItem key={language.tag} value={language.tag}>
+                  {language.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </PreferenceRow>
+        <PreferenceRow
           title={t('model.targetLanguage')}
           description={t('settings.translation.targetLanguageDescription')}
         >
@@ -170,7 +218,53 @@ export function TranslationPreferences({
           description={t('settings.translation.promptDescription')}
           align='start'
         >
-          <div className='grid gap-1'>
+          <div className='grid gap-1.5'>
+            {presets.length > 0 && (
+              <div className='flex items-center gap-1.5'>
+                <Select
+                  value={activePreset || '__custom__'}
+                  items={Object.fromEntries([
+                    ['__custom__', t('settings.translation.presets')],
+                    ...presets.map((preset) => [preset.name, preset.name]),
+                  ])}
+                  onValueChange={(selected) => {
+                    const match = presets.find((preset) => preset.name === selected)
+                    if (match) onChange({ ...value, prompt: match.prompt })
+                  }}
+                >
+                  <SelectTrigger
+                    aria-label={t('settings.translation.presets')}
+                    className='h-7 flex-1 text-[11px]'
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {presets.map((preset) => (
+                      <SelectItem key={preset.name} value={preset.name}>
+                        {preset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon-sm'
+                  disabled={!activePreset}
+                  aria-label={t('settings.translation.deletePreset')}
+                  title={t('settings.translation.deletePreset')}
+                  className='size-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+                  onClick={() =>
+                    onChange({
+                      ...value,
+                      presets: presets.filter((preset) => preset.name !== activePreset),
+                    })
+                  }
+                >
+                  <Trash2 className='size-3.5' />
+                </Button>
+              </div>
+            )}
             <Textarea
               aria-label={t('settings.translation.prompt')}
               aria-invalid={!promptNamesTarget(value)}
@@ -183,8 +277,107 @@ export function TranslationPreferences({
                 {t('settings.translation.promptNeedsTarget')}
               </p>
             )}
+            <div className='flex items-center gap-1.5'>
+              <Input
+                value={presetName}
+                aria-label={t('settings.translation.presetName')}
+                placeholder={t('settings.translation.presetName')}
+                className='h-7 flex-1 text-[11px]'
+                onChange={(event) => setPresetName(event.currentTarget.value)}
+              />
+              <Button
+                type='button'
+                variant='outline'
+                size='xs'
+                disabled={!presetName.trim() || !promptNamesTarget(value)}
+                className='h-7 shrink-0 px-2.5 text-[11px]'
+                onClick={() => {
+                  const name = presetName.trim()
+                  if (!name) return
+                  const prompt = value.prompt ?? ''
+                  const nextPresets = presets.some((preset) => preset.name === name)
+                    ? presets.map((preset) => (preset.name === name ? { name, prompt } : preset))
+                    : [...presets, { name, prompt }]
+                  onChange({ ...value, presets: nextPresets })
+                  setPresetName('')
+                }}
+              >
+                {t('settings.translation.savePreset')}
+              </Button>
+            </div>
           </div>
         </PreferenceRow>
+      </PreferenceSection>
+
+      <PreferenceSection
+        title={t('settings.translation.glossary')}
+        description={t('settings.translation.glossaryDescription')}
+      >
+        <div className='grid gap-2 py-3.5'>
+          {glossary.map((entry, index) => (
+            <div
+              key={index}
+              className='grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-2'
+            >
+              <Input
+                value={entry.source}
+                aria-label={t('settings.translation.glossarySource')}
+                placeholder={t('settings.translation.glossarySource')}
+                className='h-8 text-[11px]'
+                onChange={(event) => updateGlossary(index, { source: event.currentTarget.value })}
+              />
+              <Input
+                value={entry.target}
+                aria-label={t('settings.translation.glossaryTarget')}
+                placeholder={t('settings.translation.glossaryTarget')}
+                className='h-8 text-[11px]'
+                onChange={(event) => updateGlossary(index, { target: event.currentTarget.value })}
+              />
+              <Input
+                value={entry.note ?? ''}
+                aria-label={t('settings.translation.glossaryNote')}
+                placeholder={t('settings.translation.glossaryNote')}
+                className='h-8 text-[11px]'
+                onChange={(event) =>
+                  updateGlossary(index, { note: event.currentTarget.value || null })
+                }
+              />
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon-sm'
+                aria-label={t('settings.translation.removeTerm')}
+                title={t('settings.translation.removeTerm')}
+                className='shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    glossary: glossary.filter((_, candidate) => candidate !== index),
+                  })
+                }
+              >
+                <Trash2 className='size-3.5' />
+              </Button>
+            </div>
+          ))}
+          <div>
+            <Button
+              type='button'
+              variant='outline'
+              size='xs'
+              className='h-7 gap-1 px-2.5 text-[11px]'
+              onClick={() =>
+                onChange({
+                  ...value,
+                  glossary: [...glossary, { source: '', target: '', note: null }],
+                })
+              }
+            >
+              <Plus className='size-3' />
+              <span>{t('settings.translation.addTerm')}</span>
+            </Button>
+          </div>
+        </div>
       </PreferenceSection>
     </PreferencePage>
   )

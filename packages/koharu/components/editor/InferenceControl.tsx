@@ -102,6 +102,10 @@ function RuntimeSelector({
   const model = translator?.model || null
   const choices = availableModels(model, models)
   const modelLabel = model ? modelName(choices, model) : t('inference.noModel')
+  const source = translator?.source || null
+  const sourceLabel = source
+    ? (new Intl.DisplayNames([i18n.language], { type: 'language' }).of(source) ?? source)
+    : t('model.autoDetect')
   const target = translator?.target
   const outputLabel = target
     ? (new Intl.DisplayNames([i18n.language], { type: 'language' }).of(target) ?? target)
@@ -144,6 +148,12 @@ function RuntimeSelector({
   const chooseScope = (next: PipelineScope) => {
     onScopeChange(next)
     setView('root')
+  }
+
+  const saveSource = (next: string | null) => {
+    if (!preferences || savingOutput) return
+    setSavingOutput(true)
+    void saveTranslator({ source: next }).finally(() => setSavingOutput(false))
   }
 
   const saveOutput = (next: string) => {
@@ -209,7 +219,7 @@ function RuntimeSelector({
             />
             <SelectorRow
               label={t('inference.output')}
-              value={outputLabel}
+              value={`${sourceLabel} → ${outputLabel}`}
               onClick={() => setView('output')}
             />
             <div className='my-1 border-t border-border/70' />
@@ -288,10 +298,12 @@ function RuntimeSelector({
 
         {view === 'output' && translator && (
           <OutputPicker
+            sourceLanguage={source}
             targetLanguage={translator.target ?? 'en'}
             disabled={running}
             saving={savingOutput}
             onBack={() => setView('root')}
+            onSourceChange={saveSource}
             onChange={saveOutput}
           />
         )}

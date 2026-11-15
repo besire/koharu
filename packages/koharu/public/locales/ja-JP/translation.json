@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "ブラシカラー",
     "hexCode": "16進カラーコード",
+    "recent": "最近使った色",
     "sampleCanvas": "キャンバスから色を選択",
     "transparent": "透明"
   },
@@ -86,12 +87,14 @@
   },
   "fontPicker": {
     "choose": "フォントを選択",
+    "favorite": "{{family}} をピン留め",
     "fontCount": "{{count}}個のフォント",
     "fontCount_one": "{{count}}個のフォント",
     "fontCount_other": "{{count}}個のフォント",
     "fonts": "フォント",
     "noResults": "この検索に一致するフォントはありません",
-    "search": "フォントを検索"
+    "search": "フォントを検索",
+    "unfavorite": "{{family}} のピン留めを解除"
   },
   "inference": {
     "currentPage": "現在のページ",
@@ -141,6 +144,8 @@
     "chooseFontSize": "フォントサイズを選択",
     "color": "色",
     "decreaseBorderWidth": "縁取り幅を縮小",
+    "decreaseLetterSpacing": "字間を狭くする",
+    "decreaseLineHeight": "行間を狭くする",
     "direction": "方向",
     "font": "フォント",
     "fontSize": "フォントサイズ",
@@ -153,7 +158,14 @@
     "fontWeight": "フォントの太さ",
     "horizontal": "横書き",
     "increaseBorderWidth": "縁取り幅を拡大",
+    "increaseLetterSpacing": "字間を広くする",
+    "increaseLineHeight": "行間を広くする",
+    "letterSpacing": "字間",
+    "lineHeight": "行送り",
+    "note": "翻訳メモ",
+    "notePlaceholder": "このテキストブロックの文脈や訳し方の指示…",
     "opacity": "不透明度",
+    "runOcr": "OCR を実行",
     "selectPage": "ページを選択してレイヤーを確認します。",
     "size": "サイズ",
     "source": "原文",
@@ -201,6 +213,7 @@
     "locked": "ロック中",
     "moveDown": "{{name}}を下へ移動",
     "moveUp": "{{name}}を上へ移動",
+    "noteLabel": "{{name}} の翻訳メモ",
     "opacityLabel": "{{name}}の不透明度",
     "show": "{{name}}を表示",
     "sourceLabel": "{{name}}の原文",
@@ -236,8 +249,10 @@
     "view": "表示"
   },
   "model": {
+    "autoDetect": "自動検出",
     "baseUrl": "ベース URL",
     "default": "既定",
+    "sourceLanguage": "原文の言語",
     "targetLanguage": "対象言語"
   },
   "modelPicker": {
@@ -266,6 +281,7 @@
     "selected": "{{count}}件選択中"
   },
   "outputPicker": {
+    "sourceLanguage": "原文の言語",
     "targetLanguage": "対象言語",
     "title": "翻訳出力"
   },
@@ -374,15 +390,27 @@
     },
     "title": "設定",
     "translation": {
+      "addTerm": "用語を追加",
+      "deletePreset": "プリセットを削除",
       "description": "設定済みプロバイダーのモデルを選び、共通の翻訳・生成オプションを適用します。",
+      "glossary": "用語集",
+      "glossaryDescription": "キャラクター名や頻出語句の訳語をページ間で統一します。",
+      "glossaryNote": "メモ（任意）",
+      "glossarySource": "原文の語句",
+      "glossaryTarget": "訳語",
       "model": "モデル",
       "modelDescription": "プロバイダー名はモデルの実行場所を示します。接続は別途設定します。",
       "output": "出力",
+      "presetName": "プリセット名",
+      "presets": "保存済みプリセット",
       "prompt": "システムプロンプト",
       "promptDescription": "翻訳モデルへの指示です。{target} は翻訳先の言語に置き換えられます。",
       "promptNeedsTarget": "プロンプトには {target} を含めてください。",
       "reasoning": "推論",
       "reasoningDescription": "翻訳時にモデルの推論を使用します。",
+      "removeTerm": "用語を削除",
+      "savePreset": "プリセットを保存",
+      "sourceLanguageDescription": "必要に応じて原文言語の自動検出を上書きします。",
       "targetLanguageDescription": "テキストの翻訳先言語を選択します。",
       "title": "翻訳",
       "translationModel": "翻訳モデル",

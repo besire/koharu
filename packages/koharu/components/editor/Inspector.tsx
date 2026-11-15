@@ -20,6 +20,7 @@ import {
   MessageCircle,
   PanelsTopLeft,
   Plus,
+  ScanText,
   Shapes,
   SquareDashed,
   Trash2,
@@ -46,6 +47,7 @@ import { useFonts, usePage } from '@/lib/queries'
 import {
   deleteLayers,
   moveLayer,
+  setLayerNote,
   setLocked,
   setSourceText,
   setStyle,
@@ -55,6 +57,7 @@ import {
 } from '@/lib/scene'
 import { hexToRgba, rgbaToHex, useKoharuStore } from '@/lib/store'
 import {
+  commands,
   type Align,
   type Direction,
   type FontFamily,
@@ -104,7 +107,7 @@ export function Inspector() {
         <h2 className='text-[10px] font-semibold'>{t('inspector.type')}</h2>
       </div>
 
-      <section className='h-48 min-w-0 shrink-0 overflow-hidden border-b'>
+      <section className='min-w-0 shrink-0 border-b'>
         <TypeInspector />
       </section>
 
@@ -120,6 +123,8 @@ export function Inspector() {
 function TypeInspector() {
   const { t } = useTranslation()
   const borderWidthId = useId()
+  const lineHeightId = useId()
+  const letterSpacingId = useId()
   const page = usePage().data
   const selectedIds = useKoharuStore((state) => state.selectedLayers)
   const defaultFont = useKoharuStore(
@@ -145,7 +150,9 @@ function TypeInspector() {
   const disabled = !current
   const frame = lettering?.frame ?? 'point'
   const box = typeof frame === 'object' && 'box' in frame ? frame.box : null
-  const autoFit = box?.fit === 'best'
+  const path = typeof frame === 'object' && 'path' in frame ? frame.path : null
+  const canAutoFit = box !== null || path !== null
+  const autoFit = box?.fit === 'best' || path?.fit === 'best'
 
   /** Merges `patch` into each target's style, shown at once on the first. */
   const apply = (patch: TextStyle) => {
@@ -182,6 +189,8 @@ function TypeInspector() {
   const weight = chars.weight ?? 400
   const weights = usableFontWeights(selectedFamily, italic)
   const size = Math.round((chars.size ?? 24) * 100) / 100
+  const lineHeight = Math.round((style.line_height ?? 1.2) * 100) / 100
+  const letterSpacing = Math.round((style.letter_spacing ?? 0) * 100) / 100
   const strokeWidth = chars.stroke_width ?? 0
   const stroke = chars.stroke ?? null
   const strokeEnabled = stroke !== null && stroke[3] > 0 && strokeWidth > 0
@@ -228,13 +237,16 @@ function TypeInspector() {
               disabled={disabled}
               value={size}
               autoFit={autoFit}
-              canAutoFit={box !== null}
+              canAutoFit={canAutoFit}
               onChange={(next) => {
                 apply({ chars: { size: next } })
                 // A set size is the most the text takes, as the box's best fit would grow it.
-                if (autoFit) update({ frame: { box: { fit: 'shrink' } } })
+                if (autoFit)
+                  update({ frame: box ? { box: { fit: 'shrink' } } : { path: { fit: 'shrink' } } })
               }}
-              onAutoFit={() => update({ frame: { box: { fit: 'best' } } })}
+              onAutoFit={() =>
+                update({ frame: box ? { box: { fit: 'best' } } : { path: { fit: 'best' } } })
+              }
             />
           </InspectorField>
           <InspectorField label={t('inspector.weight')}>
@@ -357,6 +369,73 @@ function TypeInspector() {
           </InspectorField>
         </div>
 
+        <div className='grid min-w-0 grid-cols-2 gap-1.5'>
+          <InspectorField label={t('inspector.lineHeight')}>
+            <NumberField
+              id={lineHeightId}
+              name='line-height'
+              className='min-w-0'
+              disabled={disabled}
+              value={lineHeight}
+              min={0.5}
+              max={4}
+              step={0.05}
+              onValueChange={(next) => {
+                if (next !== null && next >= 0.5 && next <= 4) {
+                  apply({ line_height: next })
+                }
+              }}
+            >
+              <NumberFieldGroup>
+                <NumberFieldDecrement aria-label={t('inspector.decreaseLineHeight')}>
+                  <Minus />
+                </NumberFieldDecrement>
+                <NumberFieldInput
+                  aria-label={t('inspector.lineHeight')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur()
+                  }}
+                />
+                <NumberFieldIncrement aria-label={t('inspector.increaseLineHeight')}>
+                  <Plus />
+                </NumberFieldIncrement>
+              </NumberFieldGroup>
+            </NumberField>
+          </InspectorField>
+          <InspectorField label={t('inspector.letterSpacing')}>
+            <NumberField
+              id={letterSpacingId}
+              name='letter-spacing'
+              className='min-w-0'
+              disabled={disabled}
+              value={letterSpacing}
+              min={-0.2}
+              max={1}
+              step={0.02}
+              onValueChange={(next) => {
+                if (next !== null && next >= -0.2 && next <= 1) {
+                  apply({ letter_spacing: next })
+                }
+              }}
+            >
+              <NumberFieldGroup>
+                <NumberFieldDecrement aria-label={t('inspector.decreaseLetterSpacing')}>
+                  <Minus />
+                </NumberFieldDecrement>
+                <NumberFieldInput
+                  aria-label={t('inspector.letterSpacing')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur()
+                  }}
+                />
+                <NumberFieldIncrement aria-label={t('inspector.increaseLetterSpacing')}>
+                  <Plus />
+                </NumberFieldIncrement>
+              </NumberFieldGroup>
+            </NumberField>
+          </InspectorField>
+        </div>
+
         <div className='grid min-w-0 grid-cols-[2.75rem_minmax(5.5rem,1fr)] items-end gap-1.5'>
           <InspectorField label={t('inspector.border')}>
             <ColorWell
@@ -400,7 +479,12 @@ function TypeInspector() {
                 <NumberFieldDecrement aria-label={t('inspector.decreaseBorderWidth')}>
                   <Minus />
                 </NumberFieldDecrement>
-                <NumberFieldInput aria-label={t('inspector.borderWidth')} />
+                <NumberFieldInput
+                  aria-label={t('inspector.borderWidth')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur()
+                  }}
+                />
                 <NumberFieldIncrement aria-label={t('inspector.increaseBorderWidth')}>
                   <Plus />
                 </NumberFieldIncrement>
@@ -714,6 +798,10 @@ function LayerRow({
 function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void }) {
   const { t } = useTranslation()
   const name = localizedLayerName(layer, 0, t)
+  const jobs = useKoharuStore((state) => state.jobs)
+  const running = Object.values(jobs).some((job) => job.state === 'running')
+  const canRunOcr = isBlockLayer(layer) || (isTextLayer(layer) && typeof layer.frame === 'object')
+  const note = typeof layer.attributes.koharu?.note === 'string' ? layer.attributes.koharu.note : ''
   const [opacity, setOpacity] = useState(layer.opacity * 100)
 
   useEffect(() => {
@@ -724,6 +812,9 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
     void call(setVisibility, [layer.id], null, next / 100).catch(() =>
       setOpacity(layer.opacity * 100),
     )
+
+  const runOcr = () =>
+    void call(commands.runPipeline, { blocks: [layer.id] }, ['recognize']).catch(() => undefined)
 
   return (
     <div className='grid min-w-0 gap-1.5 px-1.5 pt-0.5 pb-1.5'>
@@ -767,6 +858,19 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
           </Tooltip>
         )}
       </div>
+      {canRunOcr && (
+        <Button
+          type='button'
+          variant='outline'
+          size='xs'
+          disabled={layer.locked || running}
+          className='h-6 justify-center gap-1 text-[10px]'
+          onClick={runOcr}
+        >
+          <ScanText className='size-3' />
+          <span>{t('inspector.runOcr')}</span>
+        </Button>
+      )}
       {isBlockLayer(layer) && (
         <>
           <InspectorField label={t('inspector.source')}>
@@ -789,6 +893,18 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
               className='max-h-16 min-h-9 w-full max-w-full min-w-0 resize-y overflow-y-auto rounded-md border-primary/25 bg-background px-1.5 py-1 text-[12px] leading-4 md:text-[12px]'
               value={plainText(layer.translation)}
               onCommit={(text) => dispatch(setText, layer.id, text)}
+            />
+          </InspectorField>
+          <InspectorField label={t('inspector.note')}>
+            <CommitTextarea
+              data-testid={`edit-note-${layer.id}`}
+              aria-label={t('layers.noteLabel', { name })}
+              placeholder={t('inspector.notePlaceholder')}
+              wrap='soft'
+              disabled={layer.locked}
+              className='max-h-14 min-h-7 w-full max-w-full min-w-0 resize-y overflow-y-auto rounded-md bg-background px-1.5 py-1 text-[11px] leading-4 md:text-[11px]'
+              value={note}
+              onCommit={(next) => dispatch(setLayerNote, layer.id, next)}
             />
           </InspectorField>
         </>
@@ -886,6 +1002,9 @@ function FontSizeField({
           aria-label={t('inspector.fontSize')}
           placeholder={t('inspector.auto')}
           className='px-2 text-left'
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
         />
         <DropdownMenu>
           <DropdownMenuTrigger

@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "لون الفرشاة",
     "hexCode": "رمز اللون الست عشري",
+    "recent": "الألوان الأخيرة",
     "sampleCanvas": "اختيار لون من اللوحة",
     "transparent": "شفاف"
   },
@@ -86,12 +87,14 @@
   },
   "fontPicker": {
     "choose": "اختر خطًا",
+    "favorite": "تثبيت {{family}}",
     "fontCount": "{{count}} خط",
     "fontCount_one": "{{count}} خط",
     "fontCount_other": "{{count}} خط",
     "fonts": "الخطوط",
     "noResults": "لا توجد خطوط تطابق هذا البحث",
-    "search": "ابحث عن خطوط"
+    "search": "ابحث عن خطوط",
+    "unfavorite": "إلغاء تثبيت {{family}}"
   },
   "inference": {
     "currentPage": "الصفحة الحالية",
@@ -141,6 +144,8 @@
     "chooseFontSize": "اختر حجم الخط",
     "color": "اللون",
     "decreaseBorderWidth": "تقليل عرض الحدود",
+    "decreaseLetterSpacing": "تقليل تباعد الأحرف",
+    "decreaseLineHeight": "تقليل ارتفاع السطر",
     "direction": "الاتجاه",
     "font": "الخط",
     "fontSize": "حجم الخط",
@@ -153,7 +158,14 @@
     "fontWeight": "وزن الخط",
     "horizontal": "أفقي",
     "increaseBorderWidth": "زيادة عرض الحدود",
+    "increaseLetterSpacing": "زيادة تباعد الأحرف",
+    "increaseLineHeight": "زيادة ارتفاع السطر",
+    "letterSpacing": "التباعد",
+    "lineHeight": "تباعد الأسطر",
+    "note": "ملاحظة",
+    "notePlaceholder": "سياق أو إرشادات لترجمة هذه الكتلة…",
     "opacity": "العتامة",
+    "runOcr": "تشغيل OCR",
     "selectPage": "اختر صفحة لعرض طبقاتها.",
     "size": "الحجم",
     "source": "النص المصدر",
@@ -201,6 +213,7 @@
     "locked": "مقفل",
     "moveDown": "نقل {{name}} لأسفل",
     "moveUp": "نقل {{name}} لأعلى",
+    "noteLabel": "ملاحظة ترجمة {{name}}",
     "opacityLabel": "عتامة {{name}}",
     "show": "إظهار {{name}}",
     "sourceLabel": "النص المصدر لـ {{name}}",
@@ -236,8 +249,10 @@
     "view": "عرض"
   },
   "model": {
+    "autoDetect": "كشف تلقائي",
     "baseUrl": "عنوان URL الأساسي",
     "default": "افتراضي",
+    "sourceLanguage": "اللغة المصدر",
     "targetLanguage": "اللغة المستهدفة"
   },
   "modelPicker": {
@@ -266,6 +281,7 @@
     "selected": "{{count}} محدّد"
   },
   "outputPicker": {
+    "sourceLanguage": "اللغة المصدر",
     "targetLanguage": "اللغة المستهدفة",
     "title": "مخرجات الترجمة"
   },
@@ -374,15 +390,27 @@
     },
     "title": "الإعدادات",
     "translation": {
+      "addTerm": "إضافة مصطلح",
+      "deletePreset": "حذف الإعداد المسبق",
       "description": "اختر أي نموذج مزوّد مهيّأ، ثم طبّق مجموعة موحّدة من خيارات الترجمة والتوليد.",
+      "glossary": "المسرد",
+      "glossaryDescription": "حافظ على اتساق أسماء الشخصيات والمصطلحات المتكررة عبر الصفحات.",
+      "glossaryNote": "ملاحظة اختيارية",
+      "glossarySource": "المصطلح الأصلي",
+      "glossaryTarget": "الترجمة المفضلة",
       "model": "النموذج",
       "modelDescription": "تشير تسميات المزوّد إلى مكان تشغيل كل نموذج؛ وتُهيَّأ الاتصالات بشكل منفصل.",
       "output": "الإخراج",
+      "presetName": "اسم الإعداد المسبق",
+      "presets": "الإعدادات المحفوظة",
       "prompt": "موجّه النظام",
       "promptDescription": "تعليمات لنموذج الترجمة؛ يُستبدل {target} باللغة الهدف.",
       "promptNeedsTarget": "يجب أن يتضمن الموجّه {target}.",
       "reasoning": "التفكير",
       "reasoningDescription": "استخدام تفكير النموذج أثناء الترجمة.",
+      "removeTerm": "إزالة المصطلح",
+      "savePreset": "حفظ الإعداد المسبق",
+      "sourceLanguageDescription": "تجاوز الكشف التلقائي عن اللغة المصدر عند الحاجة.",
       "targetLanguageDescription": "اختر اللغة التي تُترجم إليها النصوص.",
       "title": "الترجمة",
       "translationModel": "نموذج الترجمة",

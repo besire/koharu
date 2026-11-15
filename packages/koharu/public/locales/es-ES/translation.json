@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "Color del pincel",
     "hexCode": "Código de color hexadecimal",
+    "recent": "Colores recientes",
     "sampleCanvas": "Elegir un color del lienzo",
     "transparent": "Transparente"
   },
@@ -86,12 +87,14 @@
   },
   "fontPicker": {
     "choose": "Elegir una fuente",
+    "favorite": "Fijar {{family}}",
     "fontCount": "{{count}} fuentes",
     "fontCount_one": "{{count}} fuente",
     "fontCount_other": "{{count}} fuentes",
     "fonts": "Fuentes",
     "noResults": "Ninguna fuente coincide con esta búsqueda",
-    "search": "Buscar fuentes"
+    "search": "Buscar fuentes",
+    "unfavorite": "Desfijar {{family}}"
   },
   "inference": {
     "currentPage": "Página actual",
@@ -141,6 +144,8 @@
     "chooseFontSize": "Elegir tamaño de fuente",
     "color": "Color",
     "decreaseBorderWidth": "Reducir ancho del contorno",
+    "decreaseLetterSpacing": "Reducir espaciado entre letras",
+    "decreaseLineHeight": "Reducir interlineado",
     "direction": "Dirección",
     "font": "Fuente",
     "fontSize": "Tamaño de fuente",
@@ -153,7 +158,14 @@
     "fontWeight": "Grosor de fuente",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Aumentar ancho del contorno",
+    "increaseLetterSpacing": "Aumentar espaciado entre letras",
+    "increaseLineHeight": "Aumentar interlineado",
+    "letterSpacing": "Espaciado",
+    "lineHeight": "Interlineado",
+    "note": "Nota",
+    "notePlaceholder": "Contexto o instrucciones para traducir este bloque…",
     "opacity": "Opacidad",
+    "runOcr": "Ejecutar OCR",
     "selectPage": "Selecciona una página para inspeccionar sus capas.",
     "size": "Tamaño",
     "source": "Texto original",
@@ -201,6 +213,7 @@
     "locked": "Bloqueada",
     "moveDown": "Mover {{name}} abajo",
     "moveUp": "Mover {{name}} arriba",
+    "noteLabel": "Nota de traducción de {{name}}",
     "opacityLabel": "Opacidad de {{name}}",
     "show": "Mostrar {{name}}",
     "sourceLabel": "Texto original de {{name}}",
@@ -236,8 +249,10 @@
     "view": "Ver"
   },
   "model": {
+    "autoDetect": "Detección automática",
     "baseUrl": "URL base",
     "default": "Predeterminado",
+    "sourceLanguage": "Idioma de origen",
     "targetLanguage": "Idioma de destino"
   },
   "modelPicker": {
@@ -266,6 +281,7 @@
     "selected": "{{count}} seleccionadas"
   },
   "outputPicker": {
+    "sourceLanguage": "Idioma de origen",
     "targetLanguage": "Idioma de destino",
     "title": "Salida de traducción"
   },
@@ -374,15 +390,27 @@
     },
     "title": "Ajustes",
     "translation": {
+      "addTerm": "Añadir término",
+      "deletePreset": "Eliminar ajuste",
       "description": "Elige un modelo de cualquier proveedor configurado y aplica un conjunto compartido de opciones de traducción y generación.",
+      "glossary": "Glosario",
+      "glossaryDescription": "Mantén coherentes los nombres de personajes y términos recurrentes.",
+      "glossaryNote": "Nota opcional",
+      "glossarySource": "Término original",
+      "glossaryTarget": "Traducción preferida",
       "model": "Modelo",
       "modelDescription": "Las etiquetas de proveedor indican dónde se ejecuta cada modelo; las conexiones se configuran por separado.",
       "output": "Salida",
+      "presetName": "Nombre del ajuste",
+      "presets": "Ajustes guardados",
       "prompt": "Prompt del sistema",
       "promptDescription": "Instrucciones para el modelo de traducción; {target} se sustituye por el idioma de destino.",
       "promptNeedsTarget": "El prompt debe incluir {target}.",
       "reasoning": "Razonamiento",
       "reasoningDescription": "Utiliza el razonamiento del modelo durante la traducción.",
+      "removeTerm": "Quitar término",
+      "savePreset": "Guardar ajuste",
+      "sourceLanguageDescription": "Sustituye la detección automática del idioma de origen cuando sea necesario.",
       "targetLanguageDescription": "Elige el idioma al que se traducirá el texto.",
       "title": "Traducción",
       "translationModel": "Modelo de traducción",

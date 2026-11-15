@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "笔刷颜色",
     "hexCode": "十六进制颜色代码",
+    "recent": "最近使用的颜色",
     "sampleCanvas": "从画布拾取颜色",
     "transparent": "透明"
   },
@@ -86,12 +87,14 @@
   },
   "fontPicker": {
     "choose": "选择字体",
+    "favorite": "收藏 {{family}}",
     "fontCount": "{{count}} 种字体",
     "fontCount_one": "{{count}} 种字体",
     "fontCount_other": "{{count}} 种字体",
     "fonts": "字体",
     "noResults": "没有与此搜索匹配的字体",
-    "search": "搜索字体"
+    "search": "搜索字体",
+    "unfavorite": "取消收藏 {{family}}"
   },
   "inference": {
     "currentPage": "当前页面",
@@ -141,6 +144,8 @@
     "chooseFontSize": "选择字体大小",
     "color": "颜色",
     "decreaseBorderWidth": "减小描边宽度",
+    "decreaseLetterSpacing": "减小字间距",
+    "decreaseLineHeight": "减小行高",
     "direction": "方向",
     "font": "字体",
     "fontSize": "字体大小",
@@ -153,7 +158,14 @@
     "fontWeight": "字体粗细",
     "horizontal": "横排",
     "increaseBorderWidth": "增大描边宽度",
+    "increaseLetterSpacing": "增大字间距",
+    "increaseLineHeight": "增大行高",
+    "letterSpacing": "字距",
+    "lineHeight": "行高",
+    "note": "翻译备注",
+    "notePlaceholder": "补充此文本块的语境、称呼或译法说明…",
     "opacity": "不透明度",
+    "runOcr": "重新识别 OCR",
     "selectPage": "选择一个页面以检查其图层。",
     "size": "字号",
     "source": "原文",
@@ -201,6 +213,7 @@
     "locked": "已锁定",
     "moveDown": "下移 {{name}}",
     "moveUp": "上移 {{name}}",
+    "noteLabel": "{{name}} 的翻译备注",
     "opacityLabel": "{{name}} 不透明度",
     "show": "显示 {{name}}",
     "sourceLabel": "{{name}} 的原文",
@@ -236,8 +249,10 @@
     "view": "视图"
   },
   "model": {
+    "autoDetect": "自动检测",
     "baseUrl": "基础 URL",
     "default": "默认",
+    "sourceLanguage": "源语言",
     "targetLanguage": "目标语言"
   },
   "modelPicker": {
@@ -266,6 +281,7 @@
     "selected": "已选择 {{count}}"
   },
   "outputPicker": {
+    "sourceLanguage": "源语言",
     "targetLanguage": "目标语言",
     "title": "翻译输出"
   },
@@ -374,15 +390,27 @@
     },
     "title": "设置",
     "translation": {
+      "addTerm": "添加术语",
+      "deletePreset": "删除预设",
       "description": "选择任意已配置提供商的模型，然后应用一组共享的翻译和生成选项。",
+      "glossary": "术语表",
+      "glossaryDescription": "跨页保持角色译名和固定用语的一致性。",
+      "glossaryNote": "备注（可选）",
+      "glossarySource": "原文词条",
+      "glossaryTarget": "目标译名",
       "model": "模型",
       "modelDescription": "提供商标签表示各模型的运行位置；连接需单独配置。",
       "output": "输出",
+      "presetName": "预设名称",
+      "presets": "已保存的预设",
       "prompt": "系统提示词",
       "promptDescription": "给翻译模型的指示；{target} 会替换为目标语言。",
       "promptNeedsTarget": "提示词必须包含 {target}。",
       "reasoning": "推理",
       "reasoningDescription": "翻译时使用模型推理。",
+      "removeTerm": "移除术语",
+      "savePreset": "保存预设",
+      "sourceLanguageDescription": "指定漫画原文语言，或保持自动检测。",
       "targetLanguageDescription": "选择文本要翻译成的语言。",
       "title": "译文",
       "translationModel": "翻译模型",

@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "Couleur du pinceau",
     "hexCode": "Code couleur hexadécimal",
+    "recent": "Couleurs récentes",
     "sampleCanvas": "Prélever une couleur sur le canevas",
     "transparent": "Transparent"
   },
@@ -86,12 +87,14 @@
   },
   "fontPicker": {
     "choose": "Choisir une police",
+    "favorite": "Épingler {{family}}",
     "fontCount": "{{count}} polices",
     "fontCount_one": "{{count}} police",
     "fontCount_other": "{{count}} polices",
     "fonts": "Polices",
     "noResults": "Aucune police ne correspond à cette recherche",
-    "search": "Rechercher des polices"
+    "search": "Rechercher des polices",
+    "unfavorite": "Désépingler {{family}}"
   },
   "inference": {
     "currentPage": "Page actuelle",
@@ -141,6 +144,8 @@
     "chooseFontSize": "Choisir la taille de police",
     "color": "Couleur",
     "decreaseBorderWidth": "Réduire l’épaisseur du contour",
+    "decreaseLetterSpacing": "Réduire l’espacement des lettres",
+    "decreaseLineHeight": "Réduire l’interligne",
     "direction": "Direction",
     "font": "Police",
     "fontSize": "Taille de police",
@@ -153,7 +158,14 @@
     "fontWeight": "Graisse",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Augmenter l’épaisseur du contour",
+    "increaseLetterSpacing": "Augmenter l’espacement des lettres",
+    "increaseLineHeight": "Augmenter l’interligne",
+    "letterSpacing": "Approche",
+    "lineHeight": "Interligne",
+    "note": "Note",
+    "notePlaceholder": "Contexte ou consignes pour traduire ce bloc…",
     "opacity": "Opacité",
+    "runOcr": "Lancer l’OCR",
     "selectPage": "Sélectionnez une page pour inspecter ses calques.",
     "size": "Taille",
     "source": "Texte source",
@@ -201,6 +213,7 @@
     "locked": "Verrouillé",
     "moveDown": "Descendre {{name}}",
     "moveUp": "Monter {{name}}",
+    "noteLabel": "Note de traduction de {{name}}",
     "opacityLabel": "Opacité de {{name}}",
     "show": "Afficher {{name}}",
     "sourceLabel": "Texte source de {{name}}",
@@ -236,8 +249,10 @@
     "view": "Affichage"
   },
   "model": {
+    "autoDetect": "Détection auto",
     "baseUrl": "URL de base",
     "default": "Par défaut",
+    "sourceLanguage": "Langue source",
     "targetLanguage": "Langue cible"
   },
   "modelPicker": {
@@ -266,6 +281,7 @@
     "selected": "Sélection : {{count}}"
   },
   "outputPicker": {
+    "sourceLanguage": "Langue source",
     "targetLanguage": "Langue cible",
     "title": "Sortie de traduction"
   },
@@ -374,15 +390,27 @@
     },
     "title": "Paramètres",
     "translation": {
+      "addTerm": "Ajouter un terme",
+      "deletePreset": "Supprimer le préréglage",
       "description": "Choisissez le modèle de n’importe quel fournisseur configuré, puis appliquez un ensemble commun d’options de traduction et de génération.",
+      "glossary": "Glossaire",
+      "glossaryDescription": "Gardez les noms de personnages et termes récurrents cohérents d’une page à l’autre.",
+      "glossaryNote": "Note facultative",
+      "glossarySource": "Terme source",
+      "glossaryTarget": "Traduction souhaitée",
       "model": "Modèle",
       "modelDescription": "Les libellés de fournisseur indiquent où chaque modèle s’exécute ; les connexions se configurent séparément.",
       "output": "Sortie",
+      "presetName": "Nom du préréglage",
+      "presets": "Préréglages enregistrés",
       "prompt": "Prompt système",
       "promptDescription": "Instructions pour le modèle de traduction ; {target} est remplacé par la langue cible.",
       "promptNeedsTarget": "Le prompt doit contenir {target}.",
       "reasoning": "Raisonnement",
       "reasoningDescription": "Utiliser le raisonnement du modèle pendant la traduction.",
+      "removeTerm": "Retirer le terme",
+      "savePreset": "Enregistrer",
+      "sourceLanguageDescription": "Remplace la détection automatique de la langue source si nécessaire.",
       "targetLanguageDescription": "Choisissez la langue dans laquelle traduire le texte.",
       "title": "Traduction",
       "translationModel": "Modèle de traduction",

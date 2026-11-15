@@ -8,7 +8,7 @@ import { Editor } from '@/components/editor/Editor'
 import { SettingsPage } from '@/components/preferences/SettingsPage'
 import { StartView } from '@/components/start/StartView'
 import { useProject } from '@/lib/queries'
-import { useKoharuStore } from '@/lib/store'
+import { reconcileSelectedPages, useKoharuStore } from '@/lib/store'
 import { cn } from '@koharu/ui/lib/utils'
 
 export function KoharuApp() {
@@ -23,10 +23,18 @@ export function KoharuApp() {
   const editorOpen = project !== undefined && project !== null && !settingsOpen
 
   useEffect(() => {
-    if (!projectLoaded || selectedPages.length > 0) return
-    selectPages(activePage ? [activePage] : [])
-    selectLayers([])
-  }, [activePage, projectLoaded, selectLayers, selectPages, selectedPages.length])
+    if (!projectLoaded) return
+    const next = project ? reconcileSelectedPages(selectedPages, project.pages, activePage) : []
+    const unchanged =
+      next.length === selectedPages.length &&
+      next.every((page, index) => page === selectedPages[index])
+    if (unchanged) return
+    const hadValidSelection =
+      project !== null &&
+      selectedPages.some((id) => project.pages.some((candidate) => candidate.id === id))
+    selectPages(next)
+    if (!hadValidSelection) selectLayers([])
+  }, [activePage, project, projectLoaded, selectLayers, selectPages, selectedPages])
 
   return (
     <div
