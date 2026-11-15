@@ -198,10 +198,22 @@ export function PageRail() {
 
   const deletePage = (page: string) =>
     void call(commands.deletePages, [page])
-      .then(() => {
-        selectPages(selected.filter((selectedPage) => selectedPage !== page))
+      .then(async () => {
         if (active === page) selectLayers([])
-        return refresh(projectKey, pagesKey, pageKey)
+        await refresh(projectKey, pagesKey, pageKey)
+        const currentPages = queryClient.getQueryData<PageSummary[]>(pagesKey)
+        const validIds = currentPages ? new Set(currentPages.map((item) => item.id)) : null
+        const remaining = useKoharuStore
+          .getState()
+          .selectedPages.filter(
+            (selectedPage) => selectedPage !== page && (!validIds || validIds.has(selectedPage)),
+          )
+        const nextActive = queryClient.getQueryData<ProjectInfo | null>(projectKey)?.active_page
+        const fallback =
+          nextActive && nextActive !== page && (!validIds || validIds.has(nextActive))
+            ? [nextActive]
+            : []
+        selectPages(remaining.length > 0 ? remaining : fallback)
       })
       .catch(() => undefined)
 

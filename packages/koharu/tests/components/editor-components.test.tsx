@@ -12,6 +12,7 @@ import { ThemeProvider } from 'next-themes'
 import { StrictMode, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { KoharuApp } from '@/components/app/KoharuApp'
 import { TitleBar } from '@/components/app/TitleBar'
 import { WindowControls } from '@/components/app/WindowChrome'
 import { ActivityCenter } from '@/components/editor/ActivityCenter'
@@ -2165,5 +2166,114 @@ describe('greenfield editor', () => {
         }),
       ),
     )
+  })
+
+  it('drops deleted page IDs and selects newly imported pages before running the pipeline', async () => {
+    installProject()
+    let currentPages: PageSummary[] = [
+      {
+        id: 'old-page',
+        label: 'Page 1',
+        size: { width: 1000, height: 1500 },
+        source_asset: null,
+        layer_count: 0,
+      },
+    ]
+    let currentProject: ProjectInfo = {
+      name: 'Book',
+      revision: 1,
+      active_page: 'old-page',
+      can_undo: false,
+      can_redo: false,
+    }
+    queryClient.setQueryData(fontsKey, [])
+    queryClient.setQueryData(projectKey, currentProject)
+    queryClient.setQueryData(pagesKey, currentPages)
+    queryClient.setQueryData(pageKey, {
+      id: 'old-page',
+      label: 'Page 1',
+      size: { width: 1000, height: 1500 },
+      layers: [],
+      regions: [],
+    })
+    useKoharuStore.setState({ selectedPages: ['old-page'], selectedLayers: [] })
+
+    vi.spyOn(commands, 'getAgentStatus').mockResolvedValue({
+      account: null,
+      models: [],
+      config: { model: null, reasoning: 'medium' },
+      running: null,
+    })
+    vi.spyOn(commands, 'getProject').mockImplementation(async () => currentProject)
+    vi.spyOn(commands, 'getPages').mockImplementation(async () => currentPages)
+    vi.spyOn(commands, 'getPage').mockImplementation(async () =>
+      currentProject.active_page
+        ? {
+            id: currentProject.active_page,
+            label: currentPages[0]?.label ?? 'Page',
+            size: { width: 1000, height: 1500 },
+            layers: [],
+            regions: [],
+          }
+        : null,
+    )
+    const deletePages = vi.spyOn(commands, 'deletePages').mockImplementation(async () => {
+      currentPages = []
+      currentProject = { ...currentProject, revision: 2, active_page: null }
+      return null
+    })
+    const importCommand = vi.spyOn(commands, 'import').mockImplementation(async () => {
+      currentPages = [
+        {
+          id: 'new-page',
+          label: 'Page 2',
+          size: { width: 1000, height: 1500 },
+          source_asset: null,
+          layer_count: 0,
+        },
+      ]
+      currentProject = { ...currentProject, revision: 3, active_page: 'new-page', can_undo: true }
+      return null
+    })
+    const undo = vi.spyOn(commands, 'undo').mockImplementation(async () => {
+      currentPages = []
+      currentProject = { ...currentProject, revision: 2, active_page: null, can_undo: false }
+      return null
+    })
+    const run = vi.spyOn(commands, 'process').mockResolvedValue('job')
+
+    render(
+      <TooltipProvider>
+        <KoharuApp />
+      </TooltipProvider>,
+    )
+
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'Actions for Page 1' }), {
+      key: 'ArrowDown',
+    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+
+    await waitFor(() => expect(deletePages).toHaveBeenCalledWith(['old-page']))
+    await waitFor(() => expect(useKoharuStore.getState().selectedPages).toEqual([]))
+
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'Import' }), {
+      key: 'ArrowDown',
+    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Files…' }))
+
+    await waitFor(() => expect(importCommand).toHaveBeenCalledWith('files'))
+    await waitFor(() => expect(useKoharuStore.getState().selectedPages).toEqual(['new-page']))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run processing' }))
+    await waitFor(() =>
+      expect(run).toHaveBeenCalledWith(
+        { scope: 'pages', value: ['new-page'] },
+        { operation: 'full' },
+      ),
+    )
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    await waitFor(() => expect(undo).toHaveBeenCalledOnce())
+    await waitFor(() => expect(useKoharuStore.getState().selectedPages).toEqual([]))
   })
 })
