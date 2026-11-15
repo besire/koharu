@@ -52,6 +52,11 @@ const MIN_EXTREME_COLOR_PIXELS: u32 = 4;
 const MIN_MEASURED_STROKE_WIDTH: u8 = 2;
 const DIALOGUE_MASK_CONTAINMENT_THRESHOLD: f32 = 0.9;
 const TEXT_CONTAINMENT_THRESHOLD: f32 = 0.90;
+const MIN_FREE_TEXT_SPLIT_PIXELS: usize = 48;
+const MIN_FREE_TEXT_SPLIT_EXTENT: u32 = 6;
+const FREE_TEXT_BBOX_MARGIN: f32 = 2.0;
+const DISTINCT_OUTLINE_FILL_DISTANCE_SQUARED: u32 = 52 * 52;
+const DISTINCT_PLAIN_FILL_DISTANCE_SQUARED: u32 = 80 * 80;
 const FONT_STYLE_EXTENSION_KEY: &str = "dev.koharu.font.style";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Type)]
@@ -320,11 +325,12 @@ async fn write_page(
         detections.retain(|detection| intersects(detection.bbox, region));
     }
     non_maximum_suppression(&mut detections, 0.5);
+    let rgb = image.to_rgb8();
+    split_free_text_detections(&rgb, &mut detections);
     sort_by_layout(&mut detections);
 
     let font_styles =
         infer_detected_font_styles(image, &detections, include_onomatopoeia, font_detector).await?;
-    let rgb = image.to_rgb8();
     let regions = write_regions(
         &input.scene,
         edit,
@@ -660,20 +666,22 @@ struct MaskPixel {
     inside_mask: bool,
 }
 
-// BallonsTranslator normalizes vertical-line angles relative to upright text:
-// https://github.com/dmMaze/BallonsTranslator/blob/4bcc635c19f6c63a902872cf77b3d554e14ed1b7/ballontranslator/utils/textblock.py#L576-L608
-// RF-DETR provides foreground pixels rather than line quadrilaterals, so
-// projection-profile sharpness supplies the line axis. Whole-block PCA is
-// deliberately avoided because a tall multiline horizontal block otherwise
-// looks vertical.
-fn infer_typography(
+struct SampledMaskWindow {
+    points: Vec<MaskPoint>,
+    pixels: Vec<MaskPixel>,
+    background: [u8; 3],
+    width: u32,
+    height: u32,
+}
+
+fn sample_mask_window(
     image: &RgbImage,
-    detection: &KoharuLayoutDetection,
-) -> Option<InferredTypography> {
-    let mask = &detection.mask;
+    bbox: [f32; 4],
+    mask: &KoharuLayoutMask,
+) -> Option<SampledMaskWindow> {
     let width = image.width();
     let height = image.height();
-    let [bbox_left, bbox_top, bbox_right, bbox_bottom] = detection.bbox;
+    let [bbox_left, bbox_top, bbox_right, bbox_bottom] = bbox;
     let [left, top, right, bottom] = mask_window(
         [
             bbox_left - TYPOGRAPHY_SAMPLE_MARGIN,
@@ -726,9 +734,33 @@ fn infer_typography(
     } else {
         median_color(&background)
     };
-    let (angle_degrees, vertical) = mask_angle(&points, detection.bbox);
-    let (color, stroke_color, stroke_width) =
-        infer_text_paint(&pixels, background, local_width, local_height);
+    Some(SampledMaskWindow {
+        points,
+        pixels,
+        background,
+        width: local_width,
+        height: local_height,
+    })
+}
+
+// BallonsTranslator normalizes vertical-line angles relative to upright text:
+// https://github.com/dmMaze/BallonsTranslator/blob/4bcc635c19f6c63a902872cf77b3d554e14ed1b7/ballontranslator/utils/textblock.py#L576-L608
+// RF-DETR provides foreground pixels rather than line quadrilaterals, so
+// projection-profile sharpness supplies the line axis. Whole-block PCA is
+// deliberately avoided because a tall multiline horizontal block otherwise
+// looks vertical.
+fn infer_typography(
+    image: &RgbImage,
+    detection: &KoharuLayoutDetection,
+) -> Option<InferredTypography> {
+    let sampled = sample_mask_window(image, detection.bbox, &detection.mask)?;
+    let (angle_degrees, vertical) = mask_angle(&sampled.points, detection.bbox);
+    let (color, stroke_color, stroke_width) = infer_text_paint(
+        &sampled.pixels,
+        sampled.background,
+        sampled.width,
+        sampled.height,
+    );
     Some(InferredTypography {
         color,
         stroke_color,
@@ -909,6 +941,7 @@ fn infer_text_paint(
 
 #[derive(Clone, Copy)]
 struct OutlinePaint {
+    raw_fill_color: [u8; 3],
     fill_color: [u8; 3],
     stroke_color: [u8; 3],
     stroke_width: f32,
@@ -995,6 +1028,7 @@ fn infer_outline(
                 .count();
             let evidence = enclosed_fill.len() + inside_fill;
             let candidate = OutlinePaint {
+                raw_fill_color: fill_color,
                 fill_color: normalized_fill,
                 stroke_color: normalized_stroke,
                 stroke_width,
@@ -1914,6 +1948,729 @@ fn non_maximum_suppression(detections: &mut Vec<KoharuLayoutDetection>, threshol
     *detections = kept;
 }
 
+#[derive(Clone, Copy)]
+struct ForegroundPixel {
+    x: u32,
+    y: u32,
+    value: u8,
+}
+
+#[derive(Clone, Copy)]
+struct LineBand {
+    start: usize,
+    end: usize,
+    peak: usize,
+    center: f32,
+}
+
+#[derive(Clone, Copy)]
+struct BandBoundary {
+    empty_gap: usize,
+    cut_coordinate: f64,
+    pitch: f32,
+}
+
+#[derive(Clone, Copy)]
+struct RawTextPaint {
+    fill_color: [u8; 3],
+    stroke: Option<([u8; 3], f32)>,
+    inside_pixels: usize,
+}
+
+// Unbubbled CG or caption dialogue often places two adjacent speakers' outlined
+// columns without a speech balloon between them. Splitting only unhosted `text`
+// masks along cross-line gaps or distinct text paints gives each speaker its own
+// OCR crop and inferred typography while leaving bubble dialogue intact.
+fn split_free_text_detections(image: &RgbImage, detections: &mut Vec<KoharuLayoutDetection>) {
+    if detections.iter().all(|detection| detection.label != "text") {
+        return;
+    }
+    let bubbles = detections
+        .iter()
+        .filter(|detection| detection.label == "bubble")
+        .collect::<Vec<_>>();
+    let splits = detections
+        .par_iter()
+        .map(|detection| split_free_text_detection(image, detection, &bubbles))
+        .collect::<Vec<_>>();
+    if splits.iter().all(Option::is_none) {
+        return;
+    }
+    let mut expanded = Vec::with_capacity(detections.len());
+    for (original, split) in std::mem::take(detections).into_iter().zip(splits) {
+        match split {
+            Some(parts) => expanded.extend(parts),
+            None => expanded.push(original),
+        }
+    }
+    *detections = expanded;
+}
+
+fn split_free_text_detection(
+    image: &RgbImage,
+    detection: &KoharuLayoutDetection,
+    bubbles: &[&KoharuLayoutDetection],
+) -> Option<Vec<KoharuLayoutDetection>> {
+    if detection.label != "text"
+        || !valid_mask(&detection.mask)
+        || detection.mask.width == 0
+        || detection.mask.height == 0
+    {
+        return None;
+    }
+    if bubbles.iter().any(|bubble| {
+        mask_containment(&bubble.mask, &detection.mask, detection.bbox)
+            >= DIALOGUE_MASK_CONTAINMENT_THRESHOLD
+    }) {
+        return None;
+    }
+
+    let foreground = collect_foreground_pixels(&detection.mask, image.width(), image.height());
+    if foreground.len() < MIN_FREE_TEXT_SPLIT_PIXELS * 2 {
+        return None;
+    }
+    let points = foreground
+        .iter()
+        .map(|pixel| MaskPoint {
+            x: f64::from(pixel.x) + 0.5,
+            y: f64::from(pixel.y) + 0.5,
+        })
+        .collect::<Vec<_>>();
+    let (angle_degrees, is_vertical) = mask_angle(&points, detection.bbox);
+    let (sin, cos) = f64::from(angle_degrees).to_radians().sin_cos();
+    let (cross_x, cross_y) = if is_vertical { (cos, sin) } else { (-sin, cos) };
+    let (inline_x, inline_y) = if is_vertical { (-sin, cos) } else { (cos, sin) };
+
+    let (cross_groups, reference_line_width) =
+        split_along_cross_line(image, &foreground, cross_x, cross_y);
+    let mut final_groups = Vec::with_capacity(cross_groups.len());
+    for group in cross_groups {
+        final_groups.extend(split_along_inline(
+            group,
+            inline_x,
+            inline_y,
+            reference_line_width,
+        ));
+    }
+    let final_groups = coalesce_small_pixel_groups(final_groups);
+    if final_groups.len() <= 1 {
+        return None;
+    }
+
+    let parts = final_groups
+        .into_iter()
+        .map(|group| build_sub_detection(detection, &group, image.width(), image.height()))
+        .collect::<Vec<_>>();
+    (parts.len() > 1).then_some(parts)
+}
+
+fn collect_foreground_pixels(
+    mask: &KoharuLayoutMask,
+    image_width: u32,
+    image_height: u32,
+) -> Vec<ForegroundPixel> {
+    let mut pixels = Vec::new();
+    for local_y in 0..mask.height {
+        let Some(y) = mask.y.checked_add(local_y).filter(|&y| y < image_height) else {
+            continue;
+        };
+        let row = local_y as usize * mask.width as usize;
+        for local_x in 0..mask.width {
+            let value = mask.pixels[row + local_x as usize];
+            if value == 0 {
+                continue;
+            }
+            let Some(x) = mask.x.checked_add(local_x).filter(|&x| x < image_width) else {
+                continue;
+            };
+            pixels.push(ForegroundPixel { x, y, value });
+        }
+    }
+    pixels
+}
+
+fn project_foreground_profile(
+    foreground: &[ForegroundPixel],
+    axis_x: f64,
+    axis_y: f64,
+) -> Option<(f64, Vec<u32>)> {
+    let first = foreground.first()?;
+    let initial = (f64::from(first.x) + 0.5) * axis_x + (f64::from(first.y) + 0.5) * axis_y;
+    let (min_coord, max_coord) =
+        foreground[1..]
+            .iter()
+            .fold((initial, initial), |(low, high), pixel| {
+                let value =
+                    (f64::from(pixel.x) + 0.5) * axis_x + (f64::from(pixel.y) + 0.5) * axis_y;
+                (low.min(value), high.max(value))
+            });
+    let origin = min_coord.floor();
+    let len = (max_coord.ceil() - origin).max(0.0) as usize + 1;
+    let mut profile = vec![0_u32; len];
+    for pixel in foreground {
+        let coord = (f64::from(pixel.x) + 0.5) * axis_x + (f64::from(pixel.y) + 0.5) * axis_y;
+        let bin = ((coord - origin).floor().max(0.0) as usize).min(len - 1);
+        profile[bin] += 1;
+    }
+    Some((origin, profile))
+}
+
+fn split_along_cross_line(
+    image: &RgbImage,
+    foreground: &[ForegroundPixel],
+    cross_x: f64,
+    cross_y: f64,
+) -> (Vec<Vec<ForegroundPixel>>, f32) {
+    let Some((origin, profile)) = project_foreground_profile(foreground, cross_x, cross_y) else {
+        return (vec![foreground.to_vec()], 16.0);
+    };
+    if profile.len() < 16 {
+        return (vec![foreground.to_vec()], profile.len().max(12) as f32);
+    }
+    let max_count = profile.iter().copied().max().unwrap_or(0);
+    if max_count == 0 {
+        return (vec![foreground.to_vec()], 16.0);
+    }
+    let empty_ceiling = max_count / 50;
+    let bands = detect_line_bands(&profile, empty_ceiling);
+    let line_width = if bands.is_empty() {
+        16.0
+    } else {
+        median_f32(
+            &bands
+                .iter()
+                .map(|band| (band.end - band.start) as f32)
+                .collect::<Vec<_>>(),
+        )
+        .max(6.0)
+    };
+    if bands.len() < 2 {
+        return (vec![foreground.to_vec()], line_width);
+    }
+
+    let boundaries = (0..bands.len() - 1)
+        .map(|index| {
+            measure_band_boundary(
+                &profile,
+                origin,
+                empty_ceiling,
+                bands[index],
+                bands[index + 1],
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let mut cuts = Vec::new();
+    for (index, boundary) in boundaries.iter().copied().enumerate() {
+        if boundary.empty_gap < 6 {
+            continue;
+        }
+        let other_gaps = boundaries
+            .iter()
+            .enumerate()
+            .filter_map(|(other, candidate)| (other != index).then_some(candidate.empty_gap as f32))
+            .collect::<Vec<_>>();
+        let other_pitches = boundaries
+            .iter()
+            .enumerate()
+            .filter_map(|(other, candidate)| (other != index).then_some(candidate.pitch))
+            .collect::<Vec<_>>();
+        let baseline_gap = median_f32(&other_gaps);
+        let baseline_pitch = median_f32(&other_pitches);
+
+        let geometric = if bands.len() >= 3 {
+            boundary.empty_gap >= 8
+                && (boundary.empty_gap as f32) >= line_width * 0.75
+                && (boundary.empty_gap as f32) >= baseline_gap * 2.0 + 6.0
+                && boundary.pitch >= baseline_pitch * 1.45
+        } else {
+            boundary.empty_gap >= 14 && (boundary.empty_gap as f32) >= line_width * 1.25
+        };
+        if geometric {
+            cuts.push(boundary.cut_coordinate);
+            continue;
+        }
+
+        let color_candidate = (boundary.empty_gap as f32) >= (line_width.min(32.0) * 0.25).max(6.0)
+            && (bands.len() == 2 || (boundary.empty_gap as f32) >= baseline_gap * 1.4 + 3.0);
+        if color_candidate
+            && distinct_paint_across_boundary(
+                image,
+                foreground,
+                cross_x,
+                cross_y,
+                &boundaries,
+                index,
+            )
+        {
+            cuts.push(boundary.cut_coordinate);
+        }
+    }
+
+    if cuts.is_empty() {
+        (vec![foreground.to_vec()], line_width)
+    } else {
+        (
+            partition_pixels_by_cuts(foreground, cross_x, cross_y, &cuts),
+            line_width,
+        )
+    }
+}
+
+fn split_along_inline(
+    foreground: Vec<ForegroundPixel>,
+    inline_x: f64,
+    inline_y: f64,
+    reference_line_width: f32,
+) -> Vec<Vec<ForegroundPixel>> {
+    if foreground.len() < MIN_FREE_TEXT_SPLIT_PIXELS * 2 {
+        return vec![foreground];
+    }
+    let Some((origin, profile)) = project_foreground_profile(&foreground, inline_x, inline_y)
+    else {
+        return vec![foreground];
+    };
+    let max_count = profile.iter().copied().max().unwrap_or(0);
+    if max_count == 0 {
+        return vec![foreground];
+    }
+    let empty_ceiling = max_count / 50;
+    let Some(first_active) = profile.iter().position(|&count| count > empty_ceiling) else {
+        return vec![foreground];
+    };
+    let Some(last_active) = profile.iter().rposition(|&count| count > empty_ceiling) else {
+        return vec![foreground];
+    };
+    let min_gap = ((reference_line_width.max(12.0) * 2.4).ceil() as usize).max(28);
+
+    let mut cuts = Vec::new();
+    let mut index = first_active;
+    while index <= last_active {
+        if profile[index] > empty_ceiling {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        while index <= last_active && profile[index] <= empty_ceiling {
+            index += 1;
+        }
+        let end = index;
+        if start > first_active && end <= last_active && end - start >= min_gap {
+            cuts.push(origin + (start + end) as f64 * 0.5);
+        }
+    }
+
+    if cuts.is_empty() {
+        vec![foreground]
+    } else {
+        partition_pixels_by_cuts(&foreground, inline_x, inline_y, &cuts)
+    }
+}
+
+fn detect_line_bands(profile: &[u32], empty_ceiling: u32) -> Vec<LineBand> {
+    let smooth = (0..profile.len())
+        .map(|index| {
+            let at = |offset: isize| {
+                let target =
+                    (index as isize + offset).clamp(0, profile.len() as isize - 1) as usize;
+                profile[target]
+            };
+            at(-2) + at(-1) * 2 + at(0) * 3 + at(1) * 2 + at(2)
+        })
+        .collect::<Vec<_>>();
+
+    let mut raw_spans = Vec::new();
+    let mut cursor = 0;
+    while cursor < profile.len() {
+        if profile[cursor] <= empty_ceiling {
+            cursor += 1;
+            continue;
+        }
+        let start = cursor;
+        while cursor < profile.len() && profile[cursor] > empty_ceiling {
+            cursor += 1;
+        }
+        subdivide_touching_bands(profile, &smooth, start, cursor, &mut raw_spans);
+    }
+
+    raw_spans
+        .into_iter()
+        .filter_map(|(start, end)| {
+            if end - start < 2 {
+                return None;
+            }
+            let total: u64 = profile[start..end]
+                .iter()
+                .map(|&count| u64::from(count))
+                .sum();
+            if total < 12 {
+                return None;
+            }
+            let weighted: f64 = profile[start..end]
+                .iter()
+                .enumerate()
+                .map(|(offset, &count)| {
+                    (start + offset) as f64 * f64::from(count) + 0.5 * f64::from(count)
+                })
+                .sum();
+            let peak = (start..end).max_by_key(|&bin| smooth[bin]).unwrap_or(start);
+            Some(LineBand {
+                start,
+                end,
+                peak,
+                center: (weighted / total as f64) as f32,
+            })
+        })
+        .collect()
+}
+
+fn subdivide_touching_bands(
+    profile: &[u32],
+    smooth: &[u32],
+    start: usize,
+    end: usize,
+    out: &mut Vec<(usize, usize)>,
+) {
+    if end - start < 24 {
+        out.push((start, end));
+        return;
+    }
+    let mut best_valley: Option<(usize, f64)> = None;
+    for candidate in (start + 10)..=(end - 10) {
+        let left_peak = smooth[start..candidate].iter().copied().max().unwrap_or(0);
+        let right_peak = smooth[(candidate + 1)..end]
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
+        let reference = left_peak.min(right_peak);
+        let raw_reference = profile[start..candidate]
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0)
+            .min(
+                profile[(candidate + 1)..end]
+                    .iter()
+                    .copied()
+                    .max()
+                    .unwrap_or(0),
+            );
+        if reference == 0 || raw_reference == 0 {
+            continue;
+        }
+        let ratio = f64::from(smooth[candidate]) / f64::from(reference);
+        let raw_ratio = f64::from(profile[candidate]) / f64::from(raw_reference);
+        if ratio <= 0.48 && raw_ratio <= 0.30 && best_valley.is_none_or(|(_, best)| ratio < best) {
+            best_valley = Some((candidate, ratio));
+        }
+    }
+    if let Some((valley, _)) = best_valley {
+        subdivide_touching_bands(profile, smooth, start, valley, out);
+        subdivide_touching_bands(profile, smooth, valley, end, out);
+    } else {
+        out.push((start, end));
+    }
+}
+
+fn measure_band_boundary(
+    profile: &[u32],
+    origin: f64,
+    empty_ceiling: u32,
+    left: LineBand,
+    right: LineBand,
+) -> BandBoundary {
+    let search_start = (left.peak + 1).min(profile.len());
+    let search_end = right.peak.min(profile.len());
+    let mut best_gap = (left.end.min(profile.len()), left.end.min(profile.len()));
+    let mut index = search_start;
+    while index < search_end {
+        if profile[index] > empty_ceiling {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        while index < search_end && profile[index] <= empty_ceiling {
+            index += 1;
+        }
+        if index - start > best_gap.1 - best_gap.0 {
+            best_gap = (start, index);
+        }
+    }
+    BandBoundary {
+        empty_gap: best_gap.1 - best_gap.0,
+        cut_coordinate: origin + (best_gap.0 + best_gap.1) as f64 * 0.5,
+        pitch: right.center - left.center,
+    }
+}
+
+fn distinct_paint_across_boundary(
+    image: &RgbImage,
+    foreground: &[ForegroundPixel],
+    cross_x: f64,
+    cross_y: f64,
+    boundaries: &[BandBoundary],
+    index: usize,
+) -> bool {
+    let cut = boundaries[index].cut_coordinate;
+    let neighbor_min_gap = ((boundaries[index].empty_gap as f32 * 0.75).floor() as usize).max(6);
+    let left_bound = boundaries[..index]
+        .iter()
+        .rfind(|boundary| boundary.empty_gap >= neighbor_min_gap)
+        .map_or(f64::NEG_INFINITY, |boundary| boundary.cut_coordinate);
+    let right_bound = boundaries[index + 1..]
+        .iter()
+        .find(|boundary| boundary.empty_gap >= neighbor_min_gap)
+        .map_or(f64::INFINITY, |boundary| boundary.cut_coordinate);
+
+    let mut left_pixels = Vec::new();
+    let mut right_pixels = Vec::new();
+    for &pixel in foreground {
+        let coord = (f64::from(pixel.x) + 0.5) * cross_x + (f64::from(pixel.y) + 0.5) * cross_y;
+        if coord >= left_bound && coord < cut {
+            left_pixels.push(pixel);
+        } else if coord >= cut && coord < right_bound {
+            right_pixels.push(pixel);
+        }
+    }
+    if left_pixels.len() < MIN_FREE_TEXT_SPLIT_PIXELS
+        || right_pixels.len() < MIN_FREE_TEXT_SPLIT_PIXELS
+    {
+        return false;
+    }
+    let (Some(left_paint), Some(right_paint)) = (
+        infer_raw_text_paint(image, &left_pixels),
+        infer_raw_text_paint(image, &right_pixels),
+    ) else {
+        return false;
+    };
+    has_distinct_text_paint(left_paint, right_paint)
+}
+
+fn infer_raw_text_paint(image: &RgbImage, group: &[ForegroundPixel]) -> Option<RawTextPaint> {
+    let (bbox, mask) = mask_and_bbox_from_pixels(group, image.width(), image.height())?;
+    let sampled = sample_mask_window(image, bbox, &mask)?;
+    let clusters = color_clusters(&sampled.pixels, sampled.background);
+    if let Some(outline) =
+        infer_outline(&clusters, sampled.background, sampled.width, sampled.height)
+    {
+        return Some(RawTextPaint {
+            fill_color: outline.raw_fill_color,
+            stroke: Some((outline.stroke_color, outline.stroke_width)),
+            inside_pixels: sampled.points.len(),
+        });
+    }
+
+    let nonempty = clusters
+        .iter()
+        .enumerate()
+        .filter(|(_, cluster)| !cluster.pixels.is_empty())
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    if nonempty.is_empty() {
+        return None;
+    }
+    if nonempty.len() == 1 {
+        return Some(RawTextPaint {
+            fill_color: clusters[nonempty[0]].color,
+            stroke: None,
+            inside_pixels: sampled.points.len(),
+        });
+    }
+    let background_index = nonempty
+        .iter()
+        .copied()
+        .min_by_key(|index| color_distance_squared(clusters[*index].color, sampled.background))?;
+    let fill_color = nonempty
+        .iter()
+        .copied()
+        .filter(|index| *index != background_index)
+        .max_by_key(|index| cluster_ink_score(&clusters[*index], sampled.background))
+        .map(|index| representative_ink_color(&clusters[index]))
+        .unwrap_or(clusters[background_index].color);
+    Some(RawTextPaint {
+        fill_color,
+        stroke: None,
+        inside_pixels: sampled.points.len(),
+    })
+}
+
+fn has_distinct_text_paint(left: RawTextPaint, right: RawTextPaint) -> bool {
+    match (left.stroke, right.stroke) {
+        (Some((left_stroke, _)), Some((right_stroke, _))) => {
+            color_distance_squared(left.fill_color, right.fill_color)
+                >= DISTINCT_OUTLINE_FILL_DISTANCE_SQUARED
+                || color_distance_squared(left_stroke, right_stroke)
+                    >= DISTINCT_PLAIN_FILL_DISTANCE_SQUARED
+        }
+        (Some((stroke_color, stroke_width)), None) => {
+            stroke_width >= 2.5
+                && right.inside_pixels >= 32
+                && color_distance_squared(left.fill_color, right.fill_color)
+                    >= DISTINCT_OUTLINE_FILL_DISTANCE_SQUARED
+                && color_distance_squared(stroke_color, right.fill_color)
+                    >= DISTINCT_OUTLINE_FILL_DISTANCE_SQUARED
+        }
+        (None, Some((stroke_color, stroke_width))) => {
+            stroke_width >= 2.5
+                && left.inside_pixels >= 32
+                && color_distance_squared(left.fill_color, right.fill_color)
+                    >= DISTINCT_OUTLINE_FILL_DISTANCE_SQUARED
+                && color_distance_squared(stroke_color, left.fill_color)
+                    >= DISTINCT_OUTLINE_FILL_DISTANCE_SQUARED
+        }
+        (None, None) => {
+            left.inside_pixels >= 32
+                && right.inside_pixels >= 32
+                && color_distance_squared(left.fill_color, right.fill_color)
+                    >= DISTINCT_PLAIN_FILL_DISTANCE_SQUARED
+        }
+    }
+}
+
+fn partition_pixels_by_cuts(
+    foreground: &[ForegroundPixel],
+    axis_x: f64,
+    axis_y: f64,
+    cuts: &[f64],
+) -> Vec<Vec<ForegroundPixel>> {
+    let mut groups = vec![Vec::new(); cuts.len() + 1];
+    for &pixel in foreground {
+        let coord = (f64::from(pixel.x) + 0.5) * axis_x + (f64::from(pixel.y) + 0.5) * axis_y;
+        let bucket = cuts.partition_point(|&cut| coord >= cut);
+        groups[bucket].push(pixel);
+    }
+    groups.retain(|group| !group.is_empty());
+    groups
+}
+
+fn coalesce_small_pixel_groups(mut groups: Vec<Vec<ForegroundPixel>>) -> Vec<Vec<ForegroundPixel>> {
+    let valid_group = |group: &[ForegroundPixel]| {
+        if group.len() < MIN_FREE_TEXT_SPLIT_PIXELS {
+            return false;
+        }
+        let Some((min_x, min_y, max_x, max_y)) = pixel_group_bounds(group) else {
+            return false;
+        };
+        max_x - min_x >= MIN_FREE_TEXT_SPLIT_EXTENT && max_y - min_y >= MIN_FREE_TEXT_SPLIT_EXTENT
+    };
+    while groups.len() > 1 {
+        let Some(small_index) = groups.iter().position(|group| !valid_group(group)) else {
+            break;
+        };
+        let small = groups.remove(small_index);
+        let small_center = pixel_group_center(&small);
+        let target = groups
+            .iter()
+            .enumerate()
+            .min_by(|(_, left), (_, right)| {
+                squared_distance(small_center, pixel_group_center(left))
+                    .total_cmp(&squared_distance(small_center, pixel_group_center(right)))
+            })
+            .map(|(index, _)| index)
+            .unwrap_or(0);
+        groups[target].extend(small);
+    }
+    groups
+}
+
+fn pixel_group_bounds(group: &[ForegroundPixel]) -> Option<(u32, u32, u32, u32)> {
+    let first = group.first()?;
+    let (min_x, min_y, max_x, max_y) = group[1..].iter().fold(
+        (first.x, first.y, first.x + 1, first.y + 1),
+        |(min_x, min_y, max_x, max_y), pixel| {
+            (
+                min_x.min(pixel.x),
+                min_y.min(pixel.y),
+                max_x.max(pixel.x + 1),
+                max_y.max(pixel.y + 1),
+            )
+        },
+    );
+    Some((min_x, min_y, max_x, max_y))
+}
+
+fn pixel_group_center(group: &[ForegroundPixel]) -> (f64, f64) {
+    if group.is_empty() {
+        return (0.0, 0.0);
+    }
+    let (sum_x, sum_y) = group.iter().fold((0.0, 0.0), |(sx, sy), pixel| {
+        (sx + f64::from(pixel.x) + 0.5, sy + f64::from(pixel.y) + 0.5)
+    });
+    let count = group.len() as f64;
+    (sum_x / count, sum_y / count)
+}
+
+fn squared_distance(left: (f64, f64), right: (f64, f64)) -> f64 {
+    let dx = left.0 - right.0;
+    let dy = left.1 - right.1;
+    dx * dx + dy * dy
+}
+
+fn mask_and_bbox_from_pixels(
+    group: &[ForegroundPixel],
+    image_width: u32,
+    image_height: u32,
+) -> Option<([f32; 4], KoharuLayoutMask)> {
+    let (min_x, min_y, max_x, max_y) = pixel_group_bounds(group)?;
+    let width = max_x - min_x;
+    let height = max_y - min_y;
+    let mut pixels = vec![0_u8; width as usize * height as usize];
+    for pixel in group {
+        let local_x = pixel.x - min_x;
+        let local_y = pixel.y - min_y;
+        pixels[local_y as usize * width as usize + local_x as usize] = pixel.value;
+    }
+    let bbox = [
+        (min_x as f32 - FREE_TEXT_BBOX_MARGIN).max(0.0),
+        (min_y as f32 - FREE_TEXT_BBOX_MARGIN).max(0.0),
+        (max_x as f32 + FREE_TEXT_BBOX_MARGIN).min(image_width as f32),
+        (max_y as f32 + FREE_TEXT_BBOX_MARGIN).min(image_height as f32),
+    ];
+    Some((
+        bbox,
+        KoharuLayoutMask {
+            x: min_x,
+            y: min_y,
+            width,
+            height,
+            pixels,
+        },
+    ))
+}
+
+fn build_sub_detection(
+    parent: &KoharuLayoutDetection,
+    group: &[ForegroundPixel],
+    image_width: u32,
+    image_height: u32,
+) -> KoharuLayoutDetection {
+    let (bbox, mask) = mask_and_bbox_from_pixels(group, image_width, image_height)
+        .expect("validated pixel group is non-empty");
+    KoharuLayoutDetection {
+        label_id: parent.label_id,
+        label: parent.label.clone(),
+        score: parent.score,
+        bbox,
+        area: group.len().min(u32::MAX as usize) as u32,
+        mask,
+    }
+}
+
+fn median_f32(values: &[f32]) -> f32 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f32::total_cmp);
+    let mid = sorted.len() / 2;
+    if sorted.len().is_multiple_of(2) {
+        (sorted[mid - 1] + sorted[mid]) * 0.5
+    } else {
+        sorted[mid]
+    }
+}
+
 fn sort_by_layout(detections: &mut Vec<KoharuLayoutDetection>) {
     let order = layout_order(detections);
     let mut values = std::mem::take(detections)
@@ -2113,7 +2870,8 @@ mod tests {
         ImageSize, KoharuLayoutRFDetrSeg2XLConfig, MaskPixel, PageRegions, Processor, RegionOutput,
         StageInput, StageProcessor, closed_mask_for, color_palette, generation, infer_typography,
         layout_order, link_dialogue_regions, mask_containment, mask_for, mask_geometry,
-        non_maximum_suppression, normalize_text_color, write_region,
+        non_maximum_suppression, normalize_text_color, sort_by_layout, split_free_text_detections,
+        write_region,
     };
 
     #[test]
@@ -3214,5 +3972,277 @@ mod tests {
             ..koharu_ml::font_detector::FontPrediction::default()
         };
         assert_eq!(super::classify_font_style(&serif), Some("serif"));
+    }
+
+    struct TestVerticalColumn {
+        left: u32,
+        top: u32,
+        bottom: u32,
+        fill: [u8; 3],
+        stroke: [u8; 3],
+        bridge_right_gap: u32,
+    }
+
+    fn vertical_outlined_columns_scene(
+        width: u32,
+        height: u32,
+        background: [u8; 3],
+        columns: &[TestVerticalColumn],
+    ) -> (RgbImage, KoharuLayoutDetection) {
+        let mut image = RgbImage::from_pixel(width, height, Rgb(background));
+        let mut mask_pixels = vec![0_u8; width as usize * height as usize];
+        let mut min_x = width;
+        let mut min_y = height;
+        let mut max_x = 0_u32;
+        let mut max_y = 0_u32;
+
+        for col in columns {
+            let col_width = 18_u32;
+            min_x = min_x.min(col.left);
+            min_y = min_y.min(col.top);
+            max_x = max_x.max(col.left + col_width);
+            max_y = max_y.max(col.bottom);
+
+            let mut glyph_top = col.top;
+            let mut glyph_index = 0_u32;
+            while glyph_top + 18 <= col.bottom {
+                let glyph_bottom = glyph_top + 18;
+                for y in glyph_top..glyph_bottom {
+                    for x in col.left..(col.left + col_width) {
+                        let is_fill = x >= col.left + 3
+                            && x < col.left + col_width - 3
+                            && y >= glyph_top + 3
+                            && y < glyph_bottom - 3;
+                        image.put_pixel(x, y, Rgb(if is_fill { col.fill } else { col.stroke }));
+                        mask_pixels[y as usize * width as usize + x as usize] = u8::MAX;
+                    }
+                }
+                if col.bridge_right_gap > 0 && glyph_index.is_multiple_of(3) {
+                    for y in (glyph_top + 6)..(glyph_top + 10) {
+                        for x in (col.left + col_width)
+                            ..(col.left + col_width + col.bridge_right_gap).min(width)
+                        {
+                            image.put_pixel(x, y, Rgb(col.stroke));
+                            mask_pixels[y as usize * width as usize + x as usize] = u8::MAX;
+                        }
+                    }
+                }
+                glyph_top += 22;
+                glyph_index += 1;
+            }
+        }
+
+        let local_width = max_x - min_x;
+        let local_height = max_y - min_y;
+        let mut local_pixels = vec![0_u8; local_width as usize * local_height as usize];
+        let mut area = 0_u32;
+        for local_y in 0..local_height {
+            for local_x in 0..local_width {
+                let value = mask_pixels
+                    [(min_y + local_y) as usize * width as usize + (min_x + local_x) as usize];
+                local_pixels[local_y as usize * local_width as usize + local_x as usize] = value;
+                area += u32::from(value != 0);
+            }
+        }
+
+        (
+            image,
+            KoharuLayoutDetection {
+                label_id: 0,
+                label: "text".to_owned(),
+                score: 0.92,
+                bbox: [min_x as f32, min_y as f32, max_x as f32, max_y as f32],
+                area,
+                mask: KoharuLayoutMask {
+                    x: min_x,
+                    y: min_y,
+                    width: local_width,
+                    height: local_height,
+                    pixels: local_pixels,
+                },
+            },
+        )
+    }
+
+    #[test]
+    fn free_text_splits_multi_speaker_outlined_columns_and_preserves_order_and_paint() {
+        for inter_speaker_gap in [28_u32, 9_u32] {
+            let right_start = 24 + 3 * 18 + 2 * 2 + inter_speaker_gap;
+            let columns = [
+                TestVerticalColumn {
+                    left: 24,
+                    top: 24,
+                    bottom: 176,
+                    fill: [235, 125, 145],
+                    stroke: [255, 255, 255],
+                    bridge_right_gap: 2,
+                },
+                TestVerticalColumn {
+                    left: 44,
+                    top: 24,
+                    bottom: 176,
+                    fill: [235, 125, 145],
+                    stroke: [255, 255, 255],
+                    bridge_right_gap: 2,
+                },
+                TestVerticalColumn {
+                    left: 64,
+                    top: 24,
+                    bottom: 154,
+                    fill: [235, 125, 145],
+                    stroke: [255, 255, 255],
+                    bridge_right_gap: 0,
+                },
+                TestVerticalColumn {
+                    left: right_start,
+                    top: 24,
+                    bottom: 264,
+                    fill: [20, 20, 20],
+                    stroke: [255, 255, 255],
+                    bridge_right_gap: 2,
+                },
+                TestVerticalColumn {
+                    left: right_start + 20,
+                    top: 24,
+                    bottom: 264,
+                    fill: [20, 20, 20],
+                    stroke: [255, 255, 255],
+                    bridge_right_gap: 2,
+                },
+                TestVerticalColumn {
+                    left: right_start + 40,
+                    top: 24,
+                    bottom: 264,
+                    fill: [20, 20, 20],
+                    stroke: [255, 255, 255],
+                    bridge_right_gap: 2,
+                },
+                TestVerticalColumn {
+                    left: right_start + 60,
+                    top: 24,
+                    bottom: 242,
+                    fill: [20, 20, 20],
+                    stroke: [255, 255, 255],
+                    bridge_right_gap: 0,
+                },
+            ];
+            let (image, merged) = vertical_outlined_columns_scene(240, 300, [92, 64, 58], &columns);
+            let size = ImageSize {
+                width: image.width(),
+                height: image.height(),
+            };
+            let mut detections = vec![merged];
+            let expected_mask = mask_for(&detections, "text", size);
+
+            split_free_text_detections(&image, &mut detections);
+            sort_by_layout(&mut detections);
+
+            assert_eq!(detections.len(), 2, "gap {inter_speaker_gap}");
+            assert_eq!(mask_for(&detections, "text", size), expected_mask);
+            assert!(
+                detections[0].bbox[0] > detections[1].bbox[2],
+                "right speaker precedes left speaker in vertical reading order: {:?}",
+                [detections[0].bbox, detections[1].bbox]
+            );
+            assert!(
+                detections[1].bbox[3] <= 180.0,
+                "shorter left speaker keeps its own tight vertical extent: {:?}",
+                detections[1].bbox
+            );
+
+            let right_paint = infer_typography(&image, &detections[0]).unwrap();
+            let left_paint = infer_typography(&image, &detections[1]).unwrap();
+            assert_eq!(right_paint.color, [0, 0, 0]);
+            assert_eq!(right_paint.stroke_color, Some([255, 255, 255]));
+            assert_eq!(left_paint.color, [235, 125, 145]);
+            assert_eq!(left_paint.stroke_color, Some([255, 255, 255]));
+        }
+    }
+
+    #[test]
+    fn free_text_splits_same_color_blocks_only_across_outlier_gaps_and_skips_bubbles() {
+        let same_color_two_blocks = [
+            TestVerticalColumn {
+                left: 24,
+                top: 24,
+                bottom: 220,
+                fill: [20, 20, 20],
+                stroke: [255, 255, 255],
+                bridge_right_gap: 0,
+            },
+            TestVerticalColumn {
+                left: 45,
+                top: 24,
+                bottom: 220,
+                fill: [20, 20, 20],
+                stroke: [255, 255, 255],
+                bridge_right_gap: 0,
+            },
+            TestVerticalColumn {
+                left: 87,
+                top: 24,
+                bottom: 220,
+                fill: [20, 20, 20],
+                stroke: [255, 255, 255],
+                bridge_right_gap: 0,
+            },
+            TestVerticalColumn {
+                left: 108,
+                top: 24,
+                bottom: 220,
+                fill: [20, 20, 20],
+                stroke: [255, 255, 255],
+                bridge_right_gap: 0,
+            },
+        ];
+        let (image, merged) =
+            vertical_outlined_columns_scene(180, 260, [92, 64, 58], &same_color_two_blocks);
+        let mut unhosted = vec![merged.clone()];
+        split_free_text_detections(&image, &mut unhosted);
+        assert_eq!(unhosted.len(), 2);
+
+        let bubble = KoharuLayoutDetection {
+            label_id: 1,
+            label: "bubble".to_owned(),
+            score: 0.98,
+            bbox: [12.0, 12.0, 140.0, 240.0],
+            area: 128 * 228,
+            mask: KoharuLayoutMask {
+                x: 12,
+                y: 12,
+                width: 128,
+                height: 228,
+                pixels: vec![u8::MAX; 128 * 228],
+            },
+        };
+        let mut hosted = vec![bubble, merged];
+        split_free_text_detections(&image, &mut hosted);
+        assert_eq!(
+            hosted.iter().filter(|d| d.label == "text").count(),
+            1,
+            "dialogue hosted inside a bubble must stay consolidated"
+        );
+
+        for uniform_step in [20_u32, 34_u32] {
+            let uniform_paragraph = (0..4)
+                .map(|index| TestVerticalColumn {
+                    left: 20 + index * uniform_step,
+                    top: 24,
+                    bottom: 220,
+                    fill: [20, 20, 20],
+                    stroke: [255, 255, 255],
+                    bridge_right_gap: u32::from(uniform_step == 20 && index < 3) * 2,
+                })
+                .collect::<Vec<_>>();
+            let (uniform_image, uniform_detection) =
+                vertical_outlined_columns_scene(200, 260, [92, 64, 58], &uniform_paragraph);
+            let mut single_speaker = vec![uniform_detection];
+            split_free_text_detections(&uniform_image, &mut single_speaker);
+            assert_eq!(
+                single_speaker.len(),
+                1,
+                "uniform single-speaker paragraph with step {uniform_step} must not split"
+            );
+        }
     }
 }
