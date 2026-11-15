@@ -67,8 +67,10 @@ pub(crate) async fn recognize(task: &Task, config: &PipelineConfig) -> anyhow::R
         })
         .await?;
     let name = model.to_string();
+    let configured_source = config.translator.source.as_ref().map(ToString::to_string);
     for (member, texts) in members.iter().zip(texts) {
         let name = name.clone();
+        let configured_source = configured_source.clone();
         member
             .apply(Stage::Recognize, move |project| {
                 let mut ops = Vec::new();
@@ -80,10 +82,12 @@ pub(crate) async fn recognize(task: &Task, config: &PipelineConfig) -> anyhow::R
                         continue;
                     }
                     let text = normalize_ocr_text(text);
-                    let resolved = match language {
-                        "und" => infer_script_language(&text),
-                        known => known,
-                    };
+                    let resolved = configured_source
+                        .as_deref()
+                        .unwrap_or_else(|| match language {
+                            "und" => infer_script_language(&text),
+                            known => known,
+                        });
                     ops.push(koharu_scene::Op::UpdateLayer {
                         layer: block.into(),
                         patch: json!({"source": {"content": text, "language": resolved}}),

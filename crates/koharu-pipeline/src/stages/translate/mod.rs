@@ -12,6 +12,8 @@ mod model;
 mod placement;
 mod turn;
 
+use std::collections::HashMap;
+
 use anyhow::{Context as _, Result, ensure};
 use base64::Engine as _;
 use icu_experimental::displaynames::{
@@ -25,7 +27,7 @@ use koharu_llm::rig::{completion::Effort, driver::DynModel};
 use koharu_scene::{Content, LayerId, Op, Project};
 use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
-use serde_json::json;
+use serde_json::{Value, json};
 use tokio::sync::OwnedMutexGuard;
 use tracing::{Instrument as _, info_span};
 
@@ -35,12 +37,35 @@ use self::turn::Turn;
 use super::{Member, Stopped, Task, action, key};
 use crate::{PipelineConfig, Stage};
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct GlossaryEntry {
+    pub source: String,
+    pub target: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct PromptPreset {
+    pub name: String,
+    pub prompt: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 #[derive(specta::Type)]
 pub struct TranslatorConfig {
     /// A `vendor/model` reference, as koharu-llm connects one.
     pub model: String,
+    /// Source language override as a CLDR-named BCP 47 tag; `None` infers it
+    /// from the page's recognized blocks and script.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_language"
+    )]
+    #[specta(type = Option<String>)]
+    pub source: Option<LanguageIdentifier>,
     /// A language CLDR names in English.
     #[serde(deserialize_with = "target")]
     #[specta(type = String)]
@@ -57,6 +82,12 @@ pub struct TranslatorConfig {
     /// after OpenAI's `reasoning_effort`; the model's own default when unset.
     #[specta(type = Option<String>)]
     pub reasoning: Option<Effort>,
+    /// Recurring terms and character names appended to the system prompt.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub glossary: Vec<GlossaryEntry>,
+    /// Named prompt presets saved in preferences.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub presets: Vec<PromptPreset>,
 }
 
 impl Default for TranslatorConfig {
@@ -66,6 +97,7 @@ impl Default for TranslatorConfig {
             // missed, such as Shale for シャーレ where 2B wrote "tray", at
             // about twice the decoding time.
             model: "koharu/index-translate-9b".to_owned(),
+            source: None,
             target: langid!("en"),
             // Index-Translate's instTrans template in English, as
             // bilibili/Index-Translate's `docs/prompts.md` gives it
@@ -81,6 +113,8 @@ impl Default for TranslatorConfig {
             .to_owned(),
             vision: false,
             reasoning: None,
+            glossary: Vec::new(),
+            presets: Vec::new(),
         }
     }
 }
@@ -91,6 +125,16 @@ fn target<'de, D: Deserializer<'de>>(deserializer: D) -> Result<LanguageIdentifi
     Ok(target)
 }
 
+fn optional_language<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<LanguageIdentifier>, D::Error> {
+    let Some(language) = Option::<LanguageIdentifier>::deserialize(deserializer)? else {
+        return Ok(None);
+    };
+    name(&language).map_err(D::Error::custom)?;
+    Ok(Some(language))
+}
+
 fn prompt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
     let prompt = String::deserialize(deserializer)?;
     if !prompt.contains("{target}") {
@@ -99,11 +143,13 @@ fn prompt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error
     Ok(prompt)
 }
 
-/// A page's texts, and the page as a JPEG in base 64 when the model sees it.
+/// A page's texts, notes, and the page as a JPEG in base 64 when the model sees it.
 struct Page {
+    project: Project,
     /// Each block and its source's language.
     blocks: Vec<(LayerId, LanguageIdentifier)>,
     texts: Vec<String>,
+    notes: Vec<Option<String>>,
     image: Option<String>,
 }
 
@@ -125,6 +171,7 @@ pub(crate) async fn translate(
     };
     let conversation = &mut *conversation;
     conversation.keep(&translator);
+    conversation.hydrate(&page.project, member.page);
     let model = match key(Stage::Translate, config) {
         // A local model loads on the GPU thread, which only hands it over:
         // its engine runs on a thread of its own, so the turn waits off the
@@ -142,12 +189,13 @@ pub(crate) async fn translate(
             conversation.hosted(&translator).await?
         }
     };
-    let system = translator
-        .prompt
-        .replace("{target}", &name(&translator.target)?);
+    let resolved_source =
+        resolve_source_language(translator.source.as_ref(), &page.blocks, &page.texts);
+    let system = system_prompt(&translator, resolved_source.as_ref())?;
     let turn = Turn::new(
         system,
         &page.texts,
+        &page.notes,
         page.image.as_deref(),
         translator.reasoning,
         &member.cancel,
@@ -163,13 +211,129 @@ pub(crate) async fn translate(
         .blocks
         .into_iter()
         .zip(translations)
-        .map(|((block, source), text)| (block, source, text))
+        .map(|((block, source), text)| {
+            let source = translator
+                .source
+                .clone()
+                .or_else(|| (source != LanguageIdentifier::UNKNOWN).then_some(source))
+                .or_else(|| resolved_source.clone())
+                .unwrap_or(LanguageIdentifier::UNKNOWN);
+            (block, source, text)
+        })
         .collect();
     member
         .apply(Stage::Translate, move |project| {
             written(project, translated, &translator)
         })
         .await
+}
+
+/// Builds the system preamble with `{target}`, optional `{source}` / source
+/// hint, and any non-empty glossary entries.
+fn system_prompt(
+    translator: &TranslatorConfig,
+    source: Option<&LanguageIdentifier>,
+) -> Result<String> {
+    let mut system = translator
+        .prompt
+        .replace("{target}", &name(&translator.target)?);
+    match source {
+        Some(source) => {
+            let source_name = name(source)?;
+            if system.contains("{source}") {
+                system = system.replace("{source}", &source_name);
+            } else {
+                system.push_str(&format!("\n\nSource language: {source_name}."));
+            }
+        }
+        None if system.contains("{source}") => {
+            system = system.replace("{source}", "the source language");
+        }
+        None => {}
+    }
+    let entries: Vec<String> = translator
+        .glossary
+        .iter()
+        .filter_map(|entry| {
+            let source = entry.source.trim();
+            let target = entry.target.trim();
+            if source.is_empty() || target.is_empty() {
+                return None;
+            }
+            match entry
+                .note
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+            {
+                Some(note) => Some(format!("- {source} -> {target} ({note})")),
+                None => Some(format!("- {source} -> {target}")),
+            }
+        })
+        .collect();
+    if !entries.is_empty() {
+        system.push_str(&format!(
+            "\n\n[Glossary]\nUse these exact translations when the source term appears:\n{}",
+            entries.join("\n")
+        ));
+    }
+    Ok(system)
+}
+
+/// Resolves a page's source language: explicit `configured` wins, then
+/// unambiguous Kana/Hangul script across `texts`, then the dominant determined
+/// block tag, and finally Han/Latin script fallback when OCR left `und`.
+fn resolve_source_language(
+    configured: Option<&LanguageIdentifier>,
+    blocks: &[(LayerId, LanguageIdentifier)],
+    texts: &[String],
+) -> Option<LanguageIdentifier> {
+    if let Some(configured) = configured {
+        return Some(configured.clone());
+    }
+    let (mut kana, mut hangul, mut han, mut latin) = (0usize, 0usize, 0usize, 0usize);
+    for ch in texts.iter().flat_map(|text| text.chars()) {
+        if matches!(
+            ch,
+            '\u{3040}'..='\u{309F}'
+                | '\u{30A0}'..='\u{30FF}'
+                | '\u{31F0}'..='\u{31FF}'
+                | '\u{FF66}'..='\u{FF9F}'
+        ) {
+            kana += 1;
+        } else if matches!(
+            ch,
+            '\u{AC00}'..='\u{D7AF}' | '\u{1100}'..='\u{11FF}' | '\u{3130}'..='\u{318F}'
+        ) {
+            hangul += 1;
+        } else if matches!(ch, '\u{3400}'..='\u{4DBF}' | '\u{4E00}'..='\u{9FFF}') {
+            han += 1;
+        } else if ch.is_ascii_alphabetic() {
+            latin += 1;
+        }
+    }
+    if kana > 0 && kana >= hangul {
+        return Some(langid!("ja"));
+    }
+    if hangul > 0 {
+        return Some(langid!("ko"));
+    }
+    let mut counts: HashMap<&LanguageIdentifier, usize> = HashMap::new();
+    for (_, language) in blocks {
+        if *language != LanguageIdentifier::UNKNOWN {
+            *counts.entry(language).or_default() += 1;
+        }
+    }
+    if let Some((&dominant, _)) = counts.iter().max_by_key(|(_, count)| *count) {
+        return Some(dominant.clone());
+    }
+    if han > 0 {
+        Some(langid!("zh"))
+    } else if latin > 0 {
+        Some(langid!("en"))
+    } else {
+        None
+    }
 }
 
 /// The page's texts the task works on, and the page itself when the model
@@ -182,18 +346,32 @@ fn page(member: &Member, vision: bool) -> Result<Option<Page>> {
         Some((project, scan)) => (project, Some(sight(&scan)?)),
         None => (member.session.lock().project(), None),
     };
-    let (blocks, texts): (Vec<_>, Vec<_>) = member
-        .blocks(&project)
-        .into_iter()
-        .map(|(id, block)| {
-            let text = block.source.content.text();
-            ((id, block.source.language.clone()), text)
-        })
-        .filter(|(_, text)| !text.trim().is_empty())
-        .unzip();
+    let mut blocks = Vec::new();
+    let mut texts = Vec::new();
+    let mut notes = Vec::new();
+    for (id, block) in member.blocks(&project) {
+        let text = block.source.content.text();
+        if text.trim().is_empty() {
+            continue;
+        }
+        let note = project
+            .layer(id)
+            .ok()
+            .and_then(|layer| layer.attributes.get("koharu"))
+            .and_then(|namespace| namespace.get("note"))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|note| !note.is_empty())
+            .map(str::to_owned);
+        blocks.push((id, block.source.language.clone()));
+        texts.push(text);
+        notes.push(note);
+    }
     Ok((!texts.is_empty()).then_some(Page {
+        project,
         blocks,
         texts,
+        notes,
         image,
     }))
 }
@@ -297,11 +475,82 @@ fn name(target: &LanguageIdentifier) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    use koharu_scene::{Created, Edit, Session};
+
     use super::*;
 
     #[test]
     fn a_language_cldr_doesnt_name_fails() {
         let language = LanguageIdentifier::try_from_str("xx").expect("a tag");
         assert!(name(&language).is_err());
+    }
+
+    #[test]
+    fn source_language_and_glossary_extend_the_system_prompt() -> Result<()> {
+        let blocks = Vec::new();
+        assert_eq!(
+            resolve_source_language(None, &blocks, &["잠깐만요!".to_owned()]),
+            Some(langid!("ko"))
+        );
+        assert_eq!(
+            resolve_source_language(None, &blocks, &["你好世界".to_owned()]),
+            Some(langid!("zh"))
+        );
+        assert_eq!(
+            resolve_source_language(Some(&langid!("en")), &blocks, &["こんにちは".to_owned()]),
+            Some(langid!("en"))
+        );
+
+        let config = TranslatorConfig {
+            source: Some(langid!("ja")),
+            target: langid!("zh-Hans"),
+            glossary: vec![GlossaryEntry {
+                source: "冬優子".to_owned(),
+                target: "冬优子".to_owned(),
+                note: Some("female idol".to_owned()),
+            }],
+            ..TranslatorConfig::default()
+        };
+        let prompt = system_prompt(&config, config.source.as_ref())?;
+        assert!(prompt.contains("Simplified Chinese"));
+        assert!(prompt.contains("Source language: Japanese."));
+        assert!(prompt.contains("- 冬優子 -> 冬优子 (female idol)"));
+        Ok(())
+    }
+
+    #[test]
+    fn reopening_a_project_hydrates_prior_translated_pages_into_conversation() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let mut session = Session::create(dir.path().join("test.khr"))?;
+        let change = session.apply(Edit {
+            label: "seed".to_owned(),
+            ops: vec![
+                serde_json::from_value(
+                    json!({"op": "add_page", "id": "$p1", "index": 0, "size": {"width": 200, "height": 200}}),
+                )?,
+                serde_json::from_value(
+                    json!({"op": "add_page", "id": "$p2", "index": 1, "size": {"width": 200, "height": 200}}),
+                )?,
+                serde_json::from_value(json!({
+                    "op": "add_layer",
+                    "page": "$p1",
+                    "index": 0,
+                    "layer": {
+                        "kind": "block",
+                        "source": {"content": "冬優子だよ"},
+                        "translation": {"content": "我是冬优子"},
+                    }
+                }))?,
+            ],
+        })?;
+        let Some(Created::Page { id: second, .. }) = change.created.get(1) else {
+            anyhow::bail!("missing second page");
+        };
+        let mut conversations = Conversations::default();
+        let mut guard = conversations.lock(session.project().id()).context("lock")?;
+        guard.keep(&TranslatorConfig::default());
+        guard.hydrate(&session.project(), *second);
+        assert_eq!(guard.context.messages().len(), 2);
+        Ok(())
     }
 }
