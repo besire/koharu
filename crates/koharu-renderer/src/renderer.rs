@@ -2401,82 +2401,54 @@ mod tests {
                     extensions: BTreeMap::new(),
                 };
 
+                let source_text = SourceText {
+                    text: Authored::user("source".to_owned()),
+                    language: None,
+                };
+                let translation = Translation {
+                    text: Authored::user("Hi".to_owned()),
+                    language: None,
+                };
+                let layout = SceneTextLayout {
+                    origin: Origin::User,
+                    kind: TextLayoutKind::Paragraph,
+                    angle_degrees: None,
+                };
+
                 let detected_region = edit.add_analysis_region::<koharu_scene::TextRegion>(
                     page,
                     At::End,
                     &Geometry::rectangle(20.0, 20.0, 90.0, 260.0),
                     None,
                 )?;
-                let detected_content = edit.add_text_content(page, At::End)?;
-                edit.set(
-                    detected_content,
-                    &Translation {
-                        text: Authored::user("Hi".to_owned()),
-                        language: None,
-                    },
-                )?;
-                let detected_layer = edit.add_text_layer(
-                    page,
-                    At::End,
-                    detected_content,
-                    &SceneTextLayout {
-                        origin: Origin::User,
-                        kind: TextLayoutKind::Paragraph,
-                        angle_degrees: None,
-                    },
-                )?;
+                let detected = edit.add_text_content(page, At::End)?;
+                edit.set(detected, &source_text)?;
+                edit.set(detected, &translation)?;
+                let detected_layer = edit.add_text_layer(page, At::End, detected, &layout)?;
                 edit.set(detected_layer, &vertical_typography)?;
                 edit.relate::<FitsTo>(detected_layer, detected_region)?;
 
-                let custom_ocr_region = edit.add_analysis_region::<koharu_scene::TextRegion>(
+                let custom_region = edit.add_analysis_region::<koharu_scene::TextRegion>(
                     page,
                     At::End,
                     &Geometry::rectangle(130.0, 20.0, 90.0, 260.0),
                     None,
                 )?;
-                let custom_ocr_content = edit.add_text_content(page, At::End)?;
-                edit.set(
-                    custom_ocr_content,
-                    &Translation {
-                        text: Authored::user("Hi".to_owned()),
-                        language: None,
-                    },
-                )?;
-                edit.relate::<RecognizedFrom>(custom_ocr_content, custom_ocr_region)?;
-                let custom_ocr_layer = edit.add_text_layer(
-                    page,
-                    At::End,
-                    custom_ocr_content,
-                    &SceneTextLayout {
-                        origin: Origin::User,
-                        kind: TextLayoutKind::Paragraph,
-                        angle_degrees: None,
-                    },
-                )?;
+                let custom = edit.add_text_content(page, At::End)?;
+                edit.set(custom, &source_text)?;
+                edit.set(custom, &translation)?;
+                edit.relate::<RecognizedFrom>(custom, custom_region)?;
+                let custom_ocr_layer = edit.add_text_layer(page, At::End, custom, &layout)?;
                 edit.set(
                     custom_ocr_layer,
                     &Geometry::rectangle(130.0, 20.0, 90.0, 260.0),
                 )?;
                 edit.set(custom_ocr_layer, &vertical_typography)?;
 
-                let free_content = edit.add_text_content(page, At::End)?;
-                edit.set(
-                    free_content,
-                    &Translation {
-                        text: Authored::user("Hi".to_owned()),
-                        language: None,
-                    },
-                )?;
-                let free_layer = edit.add_text_layer(
-                    page,
-                    At::End,
-                    free_content,
-                    &SceneTextLayout {
-                        origin: Origin::User,
-                        kind: TextLayoutKind::Paragraph,
-                        angle_degrees: None,
-                    },
-                )?;
+                let free = edit.add_text_content(page, At::End)?;
+                edit.set(free, &source_text)?;
+                edit.set(free, &translation)?;
+                let free_layer = edit.add_text_layer(page, At::End, free, &layout)?;
                 edit.set(free_layer, &Geometry::rectangle(240.0, 20.0, 140.0, 260.0))?;
                 edit.set(free_layer, &vertical_typography)?;
 
