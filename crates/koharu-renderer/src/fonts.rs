@@ -723,19 +723,22 @@ impl Fonts {
             .system
             .get()
             .context("font system was not prepared before shaping")?;
-        let bundled = if let Some(family) = families
-            .first()
-            .filter(|family| system.lock().collection.family_by_name(family).is_none())
-            && let Some(catalog) = self.catalog.get()
-        {
-            if let Some(face) = catalog.select(family, attributes) {
-                self.cache.lock().get(&face.post_script_name)
-            } else {
-                None
+        let mut bundled = Vec::new();
+        if let Some(catalog) = self.catalog.get() {
+            let mut target_index = 0usize;
+            for family in &families {
+                if system.lock().collection.family_by_name(family).is_some() {
+                    target_index += 1;
+                    continue;
+                }
+                if let Some(face) = catalog.select(family, attributes)
+                    && let Some(font) = self.cache.lock().get(&face.post_script_name)
+                {
+                    bundled.push((target_index, font));
+                    target_index += 1;
+                }
             }
-        } else {
-            None
-        };
+        }
 
         let mut resolved = system.lock().resolve_with_fallback_families(
             &families,
@@ -744,11 +747,12 @@ impl Fonts {
             &fontique_scripts(text),
             language,
         )?;
-        if let Some(font) = bundled {
+        for (index, font) in bundled {
             resolved.retain(|candidate| {
                 candidate.data.id() != font.data.id() || candidate.index != font.index
             });
-            resolved.insert(0, font);
+            let position = index.min(resolved.len());
+            resolved.insert(position, font);
         }
         Ok(resolved)
     }

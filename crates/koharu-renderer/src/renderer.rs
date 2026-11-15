@@ -473,6 +473,8 @@ enum DraftMetadata {
         alignment: TextAlign,
         writing_mode: WritingMode,
         angle_degrees: f32,
+        line_height: f32,
+        letter_spacing: f32,
     },
 }
 
@@ -493,6 +495,11 @@ impl Renderer {
         let (width, height) = surface_size(&page_value)?;
         let source_role = AssetRole::new("source")?;
         let flow_plan = resolve_balloon_flows(snapshot, page)?;
+        let serif_font_family = typesetting
+            .serif_font_family
+            .as_deref()
+            .map(str::trim)
+            .filter(|family| !family.is_empty());
         let mut traversal = Traversal {
             snapshot,
             page,
@@ -500,6 +507,7 @@ impl Renderer {
             height,
             source_role: &source_role,
             font_families: &typesetting.font_families,
+            serif_font_family,
             balloon_flows: flow_plan.placements,
             layers: Vec::new(),
             dependencies: BTreeSet::from([
@@ -574,6 +582,7 @@ struct Traversal<'a> {
     height: u32,
     source_role: &'a AssetRole,
     font_families: &'a [String],
+    serif_font_family: Option<&'a str>,
     balloon_flows: HashMap<EntityId, ResolvedPlacement>,
     layers: Vec<LayerDraft>,
     dependencies: BTreeSet<RenderDependency>,
@@ -789,10 +798,36 @@ impl Traversal<'_> {
         let preferred_font = typography
             .as_ref()
             .and_then(|value| value.preferred_font.clone());
-        let font_families = self.font_families.to_vec();
+        let detected_serif = typography.as_ref().is_some_and(|value| {
+            value
+                .extensions
+                .get("dev.koharu.font.style")
+                .map(String::as_str)
+                == Some("serif")
+        });
+        let mut font_families = Vec::with_capacity(self.font_families.len() + 1);
+        if preferred_font.is_none()
+            && detected_serif
+            && let Some(serif_family) = self.serif_font_family
+        {
+            font_families.push(serif_family.to_owned());
+        }
+        for family in self.font_families {
+            if !font_families.iter().any(|existing| existing == family) {
+                font_families.push(family.clone());
+            }
+        }
         for family in preferred_font.iter().chain(font_families.iter()) {
             dependencies.insert(RenderDependency::Font(family.clone()));
         }
+        let line_height = typography
+            .as_ref()
+            .and_then(|value| value.line_height)
+            .unwrap_or(1.2);
+        let letter_spacing = typography
+            .as_ref()
+            .and_then(|value| value.letter_spacing)
+            .unwrap_or(0.0);
         let is_bubble = balloon_contour.is_some();
         let descriptor = TextNodeDescriptor {
             entity,
@@ -818,8 +853,8 @@ impl Traversal<'_> {
                 .and_then(|value| value.color)
                 .unwrap_or([0, 0, 0, 255]),
             stroke: resolve_stroke(typography.as_ref()),
-            line_height: 1.2,
-            letter_spacing: 0.0,
+            line_height,
+            letter_spacing,
             word_spacing: 0.0,
             text_inset: [4.0; 4],
             point_text: !is_bubble && layout.kind == TextLayoutKind::Point,
@@ -837,6 +872,8 @@ impl Traversal<'_> {
                 alignment,
                 writing_mode,
                 angle_degrees: frame.angle_degrees,
+                line_height,
+                letter_spacing,
             },
             dependencies: dependencies.iter().cloned().collect(),
         }))
@@ -1198,6 +1235,8 @@ fn assemble_frame(
                 alignment,
                 writing_mode,
                 angle_degrees,
+                line_height,
+                letter_spacing,
             } => {
                 let metadata = node
                     .text
@@ -1214,6 +1253,8 @@ fn assemble_frame(
                     alignment,
                     writing_mode,
                     angle_degrees,
+                    line_height,
+                    letter_spacing,
                 })
             }
         };
@@ -1331,12 +1372,7 @@ fn font_requests(pending: &[(usize, NodeDescriptor)]) -> Vec<FontRequest> {
         let NodeDescriptor::Text(text) = descriptor else {
             continue;
         };
-        for family in text
-            .preferred_font
-            .iter()
-            .chain(text.font_families.first())
-            .take(1)
-        {
+        for family in text.preferred_font.iter().chain(text.font_families.iter()) {
             let style = match text.font_style.unwrap_or(FontStyle::Normal) {
                 FontStyle::Normal => 0,
                 FontStyle::Italic => 1,
@@ -1721,6 +1757,8 @@ mod tests {
             stroke_width: None,
             alignment: None,
             writing_mode: Some(koharu_scene::WritingMode::Vertical),
+            line_height: None,
+            letter_spacing: None,
             extensions: BTreeMap::new(),
         };
         let bounds = LayoutBox {
@@ -1757,6 +1795,8 @@ mod tests {
             stroke_width: None,
             alignment: None,
             writing_mode: Some(koharu_scene::WritingMode::Vertical),
+            line_height: None,
+            letter_spacing: None,
             extensions: BTreeMap::new(),
         };
         let bounds = LayoutBox {
@@ -2072,6 +2112,7 @@ mod tests {
         let font = crate::fonts::FontSystem::new().first_font().unwrap();
         let renderer = Renderer::with_typesetting(TypesettingConfig {
             font_families: vec![font.family_name().to_owned()],
+            ..TypesettingConfig::default()
         });
         let base_compiled = renderer.compile(&base, page).unwrap();
         let first = base_compiled

@@ -598,7 +598,7 @@ impl<'a> TextLayout<'a> {
                     let script_runs =
                         shape_script_runs(&shaper, shaping_text, &fonts, &run_options)?;
                     for mut shaped in script_runs {
-                        self.apply_spacing(shaping_text, &mut shaped);
+                        self.apply_spacing(font_size, shaping_text, &mut shaped);
                         if self.writing_mode.is_vertical() && self.center_vertical_punctuation {
                             self.center_vertical_punctuation(
                                 font_size,
@@ -1324,7 +1324,7 @@ impl<'a> TextLayout<'a> {
                 {
                     glyph.x_offset = -x_min;
                     glyph.x_advance = if index == last {
-                        extend_advance(x_max - x_min, self.letter_spacing)
+                        extend_advance(x_max - x_min, self.letter_spacing * font_size)
                     } else {
                         x_max - x_min + gap
                     };
@@ -1338,15 +1338,16 @@ impl<'a> TextLayout<'a> {
         shaped.y_advance = shaped.glyphs.iter().map(|glyph| glyph.y_advance).sum();
     }
 
-    fn apply_spacing(&self, text: &str, shaped: &mut ShapedRun<'a>) {
+    fn apply_spacing(&self, font_size: f32, text: &str, shaped: &mut ShapedRun<'a>) {
         if self.letter_spacing == 0.0 && self.word_spacing == 0.0 {
             return;
         }
+        let letter_spacing_px = self.letter_spacing * font_size;
         for glyph in &mut shaped.glyphs {
             let character = text
                 .get(glyph.cluster as usize..)
                 .and_then(|tail| tail.chars().next());
-            let extra = self.letter_spacing
+            let extra = letter_spacing_px
                 + character
                     .filter(|character| character.is_whitespace())
                     .map_or(0.0, |_| self.word_spacing);
@@ -1362,10 +1363,12 @@ impl<'a> TextLayout<'a> {
 }
 
 fn extend_advance(advance: f32, extra: f32) -> f32 {
-    if advance < 0.0 {
-        advance - extra
+    if advance == 0.0 {
+        0.0
+    } else if advance < 0.0 {
+        (advance - extra).min(0.0)
     } else {
-        advance + extra
+        (advance + extra).max(0.0)
     }
 }
 
@@ -3577,6 +3580,32 @@ mod tests {
             (c0 - c1).abs() < 1.0,
             "expected line centres to match even with overflow, got c0={c0} c1={c1} (max_width={max_width})",
         );
+        Ok(())
+    }
+
+    #[test]
+    fn letter_spacing_scales_proportionally_with_font_size() -> anyhow::Result<()> {
+        let font = any_system_font();
+        let base_small = TextLayout::new(&font).with_font_size(20.0).run("ABCD")?;
+        let tracked_small = TextLayout::new(&font)
+            .with_font_size(20.0)
+            .with_spacing(0.1, 0.0)
+            .run("ABCD")?;
+        let base_large = TextLayout::new(&font).with_font_size(40.0).run("ABCD")?;
+        let tracked_large = TextLayout::new(&font)
+            .with_font_size(40.0)
+            .with_spacing(0.1, 0.0)
+            .run("ABCD")?;
+        let tighter_large = TextLayout::new(&font)
+            .with_font_size(40.0)
+            .with_spacing(-0.05, 0.0)
+            .run("ABCD")?;
+
+        let delta_small = tracked_small.lines[0].advance - base_small.lines[0].advance;
+        let delta_large = tracked_large.lines[0].advance - base_large.lines[0].advance;
+        assert_approx_eq(delta_small, 8.0);
+        assert_approx_eq(delta_large, 16.0);
+        assert!(tighter_large.lines[0].advance < base_large.lines[0].advance);
         Ok(())
     }
 }

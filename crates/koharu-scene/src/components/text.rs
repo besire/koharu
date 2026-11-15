@@ -65,16 +65,28 @@ pub struct SourceText {
 
 /// Marks an entity as semantic text content, independent from source analysis
 /// and visual presentation.
-#[revisioned(revision = 1)]
+#[revisioned(revision = 2)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
 pub struct TextContent {
     pub origin: Origin,
+    #[revision(start = 2)]
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 impl Component for TextContent {
     const KIND: &'static str = "dev.koharu.text.content";
 
     fn validate(&self, _context: &ValidationContext<'_>) -> Result<()> {
+        if self
+            .note
+            .as_ref()
+            .is_some_and(|note| note.len() > 64 * 1024 || note.contains('\0'))
+        {
+            return Err(Error::invalid(
+                "translation note is too large or contains NUL",
+            ));
+        }
         self.origin.validate()
     }
 

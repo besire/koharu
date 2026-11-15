@@ -140,6 +140,13 @@ impl<'a> TextContentRef<'a> {
         self.snapshot.component(self.id)
     }
 
+    pub fn note(self) -> Result<Option<String>> {
+        Ok(self
+            .snapshot
+            .component::<TextContent>(self.id)?
+            .and_then(|content| content.note))
+    }
+
     pub fn source_region(self) -> Result<Option<AnalysisRegionRef<'a>>> {
         self.snapshot
             .relation_from::<crate::RecognizedFrom>(self.id)?
@@ -234,6 +241,7 @@ impl Edit {
             entity,
             &TextContent {
                 origin: Origin::User,
+                note: None,
             },
         )?;
         Ok(entity)

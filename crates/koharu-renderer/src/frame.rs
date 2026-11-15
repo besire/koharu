@@ -378,6 +378,8 @@ pub struct TextMetadata {
     pub alignment: TextAlign,
     pub writing_mode: WritingMode,
     pub angle_degrees: f32,
+    pub line_height: f32,
+    pub letter_spacing: f32,
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]

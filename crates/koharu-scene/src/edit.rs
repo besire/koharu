@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use crate::{
     Asset, AssetInput, AssetRole, BlobId, ComponentOwner, EntityId, EntityOrigin, Error,
     Generation, Group, Origin, Page, PageDraft, Patch, Relation, RelationId, RelationKind,
-    RelationSpec, Result, Snapshot, SourceText, TextGroup, Visibility,
+    RelationSpec, Result, Snapshot, SourceText, TextGroup, Translation, Visibility,
     component::{Component, ComponentKey, ComponentRecord, ValidationContext, decode, encode, key},
     components::Assets,
     patch::{Observation, Operation},
@@ -332,6 +332,50 @@ impl Edit {
         }
         let generation = self.generation.clone().ok_or_else(|| {
             Error::Authorship("OCR source text requires a pipeline generation".to_owned())
+        })?;
+        self.observe_component(owner, key.clone())?;
+        let mut value = value.clone();
+        value.text.origin = Origin::Generated(generation);
+        self.replace_component(owner, key, Some(self.encode_value(&value)?))?;
+        self.validate_entities.insert(entity);
+        Ok(())
+    }
+
+    /// Writes a pipeline-generated translation, optionally replacing a user-authored
+    /// translation when the run explicitly targets specific entities.
+    pub fn set_generated_translation(
+        &mut self,
+        entity: EntityId,
+        value: &Translation,
+        overwrite_user: bool,
+    ) -> Result<()> {
+        if !overwrite_user {
+            return self.set(entity, value);
+        }
+        if !self.state.contains_entity(entity) {
+            return Err(Error::EntityNotFound(entity));
+        }
+        let owner = ComponentOwner::Entity(entity);
+        let key = key::<Translation>()?;
+        let existing = self
+            .component(owner, &key)?
+            .map(|record| {
+                let record_exists = |id| self.state.contains_entity(id);
+                let blob_exists = |_id| true;
+                decode::<Translation>(
+                    record,
+                    &ValidationContext::new(&record_exists, &blob_exists),
+                )
+            })
+            .transpose()?;
+        let user_owned = existing
+            .as_ref()
+            .is_some_and(|current| matches!(current.text.origin, Origin::User));
+        if !user_owned {
+            return self.set(entity, value);
+        }
+        let generation = self.generation.clone().ok_or_else(|| {
+            Error::Authorship("generated translation requires a pipeline generation".to_owned())
         })?;
         self.observe_component(owner, key.clone())?;
         let mut value = value.clone();

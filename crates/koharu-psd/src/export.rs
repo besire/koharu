@@ -219,6 +219,8 @@ fn tysh_body(text: &TextMetadata) -> Result<Vec<u8>, PsdExportError> {
         justification: text.justification,
         box_width: text.box_width,
         box_height: text.box_height,
+        line_height: text.line_height,
+        letter_spacing: text.letter_spacing,
     });
     let bounds = bounds_descriptor(
         "bounds",
@@ -464,6 +466,8 @@ mod tests {
             color: [0, 0, 0, 255],
             box_width: 10.0,
             box_height: 8.0,
+            line_height: 1.2,
+            letter_spacing: 0.0,
         };
         let mut text_layer = layer("Text", false);
         text_layer.text = Some(text);

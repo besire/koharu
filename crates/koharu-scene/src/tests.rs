@@ -120,17 +120,17 @@ async fn built_in_component_schema_revisions_are_explicit() {
             schema::<OcrAnalysis>(),
             schema::<Group>(),
             schema::<TextGroup>(),
-            schema::<Typography>(),
             schema::<Region>(),
             schema::<DetectionAnalysis>(),
             schema::<EntityOrigin>(),
-            schema::<TextContent>(),
             schema::<crate::components::Assets>(),
             schema::<Relation>(),
         ],
-        [1; 18]
+        [1; 16]
     );
     assert_eq!(schema::<TextLayout>(), 2);
+    assert_eq!(schema::<Typography>(), 2);
+    assert_eq!(schema::<TextContent>(), 2);
 }
 
 #[tokio::test]
@@ -1150,6 +1150,8 @@ async fn independent_pipeline_components_rebase() {
                     alignment: Some(TextAlignment::Center),
                     writing_mode: None,
                     extensions: BTreeMap::new(),
+                    line_height: None,
+                    letter_spacing: None,
                 },
             )
         })
@@ -1628,4 +1630,77 @@ async fn user_promotion_protects_generated_entity_and_relation_lifecycle() {
         rerun.remove_entity(entity, RemovePolicy::Cascade),
         Err(Error::Authorship(_))
     ));
+}
+
+#[tokio::test]
+async fn explicit_generated_translation_can_replace_user_translation_while_default_preserves_it() {
+    let mut session = Session::memory().await.unwrap();
+    let mut content = None;
+    let setup = session
+        .snapshot()
+        .patch(|edit| {
+            let page = edit.add_page(page(), At::End)?;
+            let id = edit.add_text_content(page, At::End)?;
+            edit.set(
+                id,
+                &TextContent {
+                    origin: Origin::User,
+                    note: Some("Honorifics intact".to_owned()),
+                },
+            )?;
+            edit.set(
+                id,
+                &SourceText {
+                    text: Authored::user("原文".to_owned()),
+                    language: Some(LanguageTag::new("ja").unwrap()),
+                },
+            )?;
+            edit.set(
+                id,
+                &Translation {
+                    text: Authored::user("Manual".to_owned()),
+                    language: Some(LanguageTag::new("en").unwrap()),
+                },
+            )?;
+            content = Some(id);
+            Ok(())
+        })
+        .unwrap();
+    let snapshot = session.commit(setup).await.unwrap().snapshot;
+    let content = content.unwrap();
+    assert_eq!(
+        snapshot.text_content(content).unwrap().note().unwrap(),
+        Some("Honorifics intact".to_owned())
+    );
+
+    let generation = Generation::new(ProducerId::new("dev.koharu.pipeline.translation").unwrap());
+    let next = Translation {
+        text: Authored::generated("Retranslated".to_owned(), generation.clone()),
+        language: Some(LanguageTag::new("en").unwrap()),
+    };
+
+    let mut blocked = snapshot.edit_as(generation.clone());
+    assert!(matches!(
+        blocked.set_generated_translation(content, &next, false),
+        Err(Error::Authorship(_))
+    ));
+
+    let mut explicit = snapshot.edit_as(generation);
+    explicit
+        .set_generated_translation(content, &next, true)
+        .unwrap();
+    let committed = session
+        .commit(explicit.finish().unwrap())
+        .await
+        .unwrap()
+        .snapshot;
+    assert_eq!(
+        committed
+            .component::<Translation>(content)
+            .unwrap()
+            .unwrap()
+            .text
+            .value,
+        "Retranslated"
+    );
 }

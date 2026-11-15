@@ -31,6 +31,8 @@ pub struct TextEngineSpec {
     pub justification: TextJustification,
     pub box_width: f64,
     pub box_height: f64,
+    pub line_height: f64,
+    pub letter_spacing: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -453,7 +455,7 @@ fn base_style_sheet(font_index: i32) -> Vec<(String, EngineValue)> {
 }
 
 fn style_run_sheet(spec: &TextEngineSpec, font_index: i32) -> Vec<(String, EngineValue)> {
-    vec![
+    let mut entries = vec![
         ("Font".to_string(), EngineValue::Int(font_index)),
         ("FontSize".to_string(), EngineValue::Float(spec.font_size)),
         ("FauxBold".to_string(), EngineValue::Bool(spec.faux_bold)),
@@ -463,11 +465,23 @@ fn style_run_sheet(spec: &TextEngineSpec, font_index: i32) -> Vec<(String, Engin
         ),
         ("AutoKerning".to_string(), EngineValue::Bool(true)),
         ("Kerning".to_string(), EngineValue::Int(0)),
-        (
-            "FillColor".to_string(),
-            EngineValue::Dict(color_type_values(spec.color)),
-        ),
-    ]
+    ];
+    if (spec.line_height - 1.2).abs() > 1e-3 {
+        entries.push(("AutoLeading".to_string(), EngineValue::Bool(false)));
+        entries.push((
+            "Leading".to_string(),
+            EngineValue::Float(spec.font_size * spec.line_height),
+        ));
+    }
+    let tracking = (spec.letter_spacing * 1000.0).round() as i32;
+    if tracking != 0 {
+        entries.push(("Tracking".to_string(), EngineValue::Int(tracking)));
+    }
+    entries.push((
+        "FillColor".to_string(),
+        EngineValue::Dict(color_type_values(spec.color)),
+    ));
+    entries
 }
 
 fn resource_dict(
@@ -787,6 +801,8 @@ mod tests {
             justification: TextJustification::Center,
             box_width: 100.0,
             box_height: 32.0,
+            line_height: 1.2,
+            letter_spacing: 0.0,
         });
 
         assert!(
@@ -821,6 +837,8 @@ mod tests {
             justification: TextJustification::Center,
             box_width: 100.0,
             box_height: 32.0,
+            line_height: 1.2,
+            letter_spacing: 0.0,
         });
 
         assert!(
@@ -832,6 +850,41 @@ mod tests {
             bytes
                 .windows("/Axis [ 1.0 0.0 1.0 ]".len())
                 .any(|w| w == b"/Axis [ 1.0 0.0 1.0 ]")
+        );
+    }
+
+    #[test]
+    fn engine_data_encodes_custom_leading_and_tracking() {
+        let bytes = encode_engine_data(&TextEngineSpec {
+            text: "Hello".to_string(),
+            font_index: 1,
+            font_set: vec!["AdobeInvisFont".to_string(), "ArialMT".to_string()],
+            font_size: 20.0,
+            color: [1, 2, 3, 255],
+            faux_bold: false,
+            faux_italic: false,
+            orientation: TextOrientation::Horizontal,
+            justification: TextJustification::Center,
+            box_width: 100.0,
+            box_height: 32.0,
+            line_height: 1.5,
+            letter_spacing: 0.08,
+        });
+
+        assert!(
+            bytes
+                .windows("/AutoLeading false".len())
+                .any(|w| w == b"/AutoLeading false")
+        );
+        assert!(
+            bytes
+                .windows("/Leading 30.0".len())
+                .any(|w| w == b"/Leading 30.0")
+        );
+        assert!(
+            bytes
+                .windows("/Tracking 80".len())
+                .any(|w| w == b"/Tracking 80")
         );
     }
 }
