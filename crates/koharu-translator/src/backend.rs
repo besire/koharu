@@ -13,6 +13,7 @@ const JPEG_QUALITY: u8 = 88;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TranslationRequest {
     pub segments: Vec<String>,
+    pub segment_notes: Vec<Option<String>>,
     pub source_language: Option<Language>,
     pub target_language: Language,
     pub instructions: Option<String>,
@@ -28,6 +29,7 @@ impl TranslationRequest {
     ) -> Self {
         Self {
             segments: segments.into_iter().map(Into::into).collect(),
+            segment_notes: Vec::new(),
             source_language: None,
             target_language,
             instructions: None,
@@ -36,7 +38,6 @@ impl TranslationRequest {
         }
     }
 
-    #[cfg(test)]
     #[must_use]
     pub fn with_source_language(mut self, language: Language) -> Self {
         self.source_language = Some(language);
@@ -55,10 +56,21 @@ impl TranslationRequest {
         self
     }
 
-    #[cfg(test)]
     #[must_use]
     pub fn with_context(mut self, context: impl IntoIterator<Item = TranslationContext>) -> Self {
         self.context = context.into_iter().collect();
+        self
+    }
+
+    #[must_use]
+    pub fn with_segment_notes(mut self, notes: impl IntoIterator<Item = Option<String>>) -> Self {
+        self.segment_notes = notes
+            .into_iter()
+            .map(|note| {
+                note.map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty())
+            })
+            .collect();
         self
     }
 
@@ -128,7 +140,6 @@ pub struct TranslationContext {
 }
 
 impl TranslationContext {
-    #[cfg(test)]
     #[must_use]
     pub fn new(source: impl Into<String>, translation: impl Into<String>) -> Self {
         Self {

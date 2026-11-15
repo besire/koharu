@@ -31,7 +31,7 @@ pub use openrouter::OpenRouterConfig;
 
 use crate::{
     Error, GenerationConfig, Model, ModelSelection, Provider, ProvidersConfig, Result,
-    TranslationRequest,
+    TranslationRequest, prompt::ParsedTranslations,
 };
 
 pub(crate) async fn translate(
@@ -40,7 +40,7 @@ pub(crate) async fn translate(
     selection: &ModelSelection,
     generation: &GenerationConfig,
     request: &TranslationRequest,
-) -> Result<Vec<String>> {
+) -> Result<ParsedTranslations> {
     let model = || {
         selection
             .model
@@ -83,11 +83,19 @@ pub(crate) async fn translate(
         Provider::LmStudio => {
             lm_studio::translate(client, &providers.lm_studio, model()?, generation, request).await
         }
-        Provider::DeepL => deepl::translate(client, &providers.deepl, request).await,
-        Provider::GoogleCloudTranslation => {
-            google_cloud::translate(client, &providers.google_cloud_translation, request).await
-        }
-        Provider::Caiyun => caiyun::translate(client, &providers.caiyun, request).await,
+        Provider::DeepL => Ok(ParsedTranslations {
+            segments: deepl::translate(client, &providers.deepl, request).await?,
+            missing_ids: Vec::new(),
+        }),
+        Provider::GoogleCloudTranslation => Ok(ParsedTranslations {
+            segments: google_cloud::translate(client, &providers.google_cloud_translation, request)
+                .await?,
+            missing_ids: Vec::new(),
+        }),
+        Provider::Caiyun => Ok(ParsedTranslations {
+            segments: caiyun::translate(client, &providers.caiyun, request).await?,
+            missing_ids: Vec::new(),
+        }),
         Provider::Local => unreachable!("local translation has its own backend"),
     }
 }

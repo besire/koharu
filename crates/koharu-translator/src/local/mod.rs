@@ -57,10 +57,13 @@ impl LocalTranslator {
         &self,
         request: TranslationRequest,
         generation: GenerationConfig,
-    ) -> Result<Vec<String>> {
+    ) -> Result<prompt::ParsedTranslations> {
         let expected = request.segments.len();
         if expected == 0 {
-            return Ok(Vec::new());
+            return Ok(prompt::ParsedTranslations {
+                segments: Vec::new(),
+                missing_ids: Vec::new(),
+            });
         }
         if !self
             .descriptor
@@ -89,8 +92,8 @@ impl LocalTranslator {
             llm.inference_with_json_schema(&input, &generation, &schema)
         })
         .await?;
-        let segments = prompt::translations("local", &output.text, &request.segments)?;
-        Ok(segments)
+        let parsed = prompt::translations_detailed("local", &output.text, &request.segments)?;
+        Ok(parsed)
     }
 
     fn render_prompt(&self, request: &TranslationRequest, reasoning: bool) -> Result<String> {

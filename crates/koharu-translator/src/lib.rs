@@ -117,24 +117,52 @@ impl Translator {
         }
 
         let expected = request.segments.len();
-        let translated = if provider == Provider::Local {
-            self.local(selection)
-                .await?
-                .translate(request, generation)
-                .await?
-        } else {
-            let providers = self.providers.read()?.clone();
-            remote::translate(&self.client, &providers, selection, &generation, &request).await?
-        };
-        if translated.len() != expected {
+        let mut parsed = self
+            .translate_once(selection, &generation, &request)
+            .await?;
+        if parsed.segments.len() != expected {
             return Err(Error::SegmentCount {
                 provider: provider_id,
                 expected,
-                actual: translated.len(),
+                actual: parsed.segments.len(),
             }
             .into());
         }
-        Ok((provider_id, translated))
+
+        if supports_missing_segment_retry(provider) && !parsed.missing_ids.is_empty() {
+            let retry_request = build_missing_retry_request(&request, &parsed);
+            let retry_parsed = self
+                .translate_once(selection, &generation, &retry_request)
+                .await?;
+            if retry_parsed.segments.len() != retry_request.segments.len() {
+                return Err(Error::SegmentCount {
+                    provider: provider_id,
+                    expected: retry_request.segments.len(),
+                    actual: retry_parsed.segments.len(),
+                }
+                .into());
+            }
+            apply_missing_retry(&mut parsed, &retry_parsed);
+        }
+
+        Ok((provider_id, parsed.segments))
+    }
+
+    async fn translate_once(
+        &self,
+        selection: &ModelSelection,
+        generation: &GenerationConfig,
+        request: &TranslationRequest,
+    ) -> Result<prompt::ParsedTranslations> {
+        if selection.provider == Provider::Local {
+            self.local(selection)
+                .await?
+                .translate(request.clone(), *generation)
+                .await
+        } else {
+            let providers = self.providers.read()?.clone();
+            remote::translate(&self.client, &providers, selection, generation, request).await
+        }
     }
 
     #[tracing::instrument(skip_all)]
@@ -176,6 +204,61 @@ impl Translator {
     }
 }
 
+fn supports_missing_segment_retry(provider: Provider) -> bool {
+    !matches!(
+        provider,
+        Provider::DeepL | Provider::GoogleCloudTranslation | Provider::Caiyun
+    )
+}
+
+fn build_missing_retry_request(
+    request: &TranslationRequest,
+    parsed: &prompt::ParsedTranslations,
+) -> TranslationRequest {
+    let mut context = request.context.clone();
+    for (id, (source, translated)) in request.segments.iter().zip(&parsed.segments).enumerate() {
+        if !parsed.missing_ids.contains(&id) {
+            context.push(TranslationContext::new(source.clone(), translated.clone()));
+        }
+    }
+
+    let segments = parsed
+        .missing_ids
+        .iter()
+        .map(|&id| request.segments[id].clone());
+    let notes = parsed
+        .missing_ids
+        .iter()
+        .map(|&id| request.segment_notes.get(id).cloned().flatten());
+
+    let mut retry = TranslationRequest::new(segments, request.target_language)
+        .with_context(context)
+        .with_segment_notes(notes);
+    if let Some(source_language) = request.source_language {
+        retry = retry.with_source_language(source_language);
+    }
+    if let Some(instructions) = &request.instructions {
+        retry = retry.with_instructions(instructions.clone());
+    }
+    retry
+}
+
+fn apply_missing_retry(
+    parsed: &mut prompt::ParsedTranslations,
+    retry_parsed: &prompt::ParsedTranslations,
+) {
+    let original_missing = parsed.missing_ids.clone();
+    let mut remaining_missing = Vec::new();
+    for (retry_index, original_id) in original_missing.into_iter().enumerate() {
+        if retry_parsed.missing_ids.contains(&retry_index) {
+            remaining_missing.push(original_id);
+        } else if let Some(value) = retry_parsed.segments.get(retry_index) {
+            parsed.segments[original_id] = value.clone();
+        }
+    }
+    parsed.missing_ids = remaining_missing;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,5 +296,38 @@ mod tests {
                 ..GenerationConfig::default()
             }
         ));
+    }
+
+    #[test]
+    fn missing_segment_retry_builds_focused_request_and_splices_results() {
+        assert!(supports_missing_segment_retry(Provider::DeepSeek));
+        assert!(!supports_missing_segment_retry(Provider::DeepL));
+
+        let request = TranslationRequest::new(["a", "b", "c"], Language::English)
+            .with_source_language(Language::Japanese)
+            .with_context([TranslationContext::new("prev", "prior")])
+            .with_segment_notes([None, Some("Shout".to_owned()), None])
+            .with_image(Arc::new(image::DynamicImage::new_rgb8(2, 2)));
+        let mut parsed = prompt::ParsedTranslations {
+            segments: vec!["A".to_owned(), "b".to_owned(), "C".to_owned()],
+            missing_ids: vec![1],
+        };
+
+        let retry = build_missing_retry_request(&request, &parsed);
+        assert_eq!(retry.segments, vec!["b".to_owned()]);
+        assert_eq!(retry.segment_notes, vec![Some("Shout".to_owned())]);
+        assert!(retry.image.is_none());
+        assert_eq!(retry.context.len(), 3);
+
+        let retry_parsed = prompt::ParsedTranslations {
+            segments: vec!["B!".to_owned()],
+            missing_ids: Vec::new(),
+        };
+        apply_missing_retry(&mut parsed, &retry_parsed);
+        assert_eq!(
+            parsed.segments,
+            vec!["A".to_owned(), "B!".to_owned(), "C".to_owned()]
+        );
+        assert!(parsed.missing_ids.is_empty());
     }
 }

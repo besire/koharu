@@ -7,6 +7,12 @@ use serde_json::{Value, json};
 
 use crate::{Language, TranslationContext, TranslationRequest};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ParsedTranslations {
+    pub(crate) segments: Vec<String>,
+    pub(crate) missing_ids: Vec<usize>,
+}
+
 pub(crate) fn prompts(request: &TranslationRequest) -> anyhow::Result<(String, String)> {
     let input = TranslationInput {
         source_language: request.source_language,
@@ -16,25 +22,49 @@ pub(crate) fn prompts(request: &TranslationRequest) -> anyhow::Result<(String, S
             .segments
             .iter()
             .enumerate()
-            .map(|(id, text)| TranslationInputSegment { id, text })
+            .map(|(id, text)| TranslationInputSegment {
+                id,
+                text,
+                note: request
+                    .segment_notes
+                    .get(id)
+                    .and_then(Option::as_deref)
+                    .map(str::trim)
+                    .filter(|note| !note.is_empty()),
+            })
             .collect(),
     };
     let user = serde_json::to_string(&input).context("failed to serialize translation input")?;
     Ok((translation_system_prompt(request), user))
 }
 
+#[cfg(test)]
 pub(crate) fn translations(
     provider: &str,
     text: &str,
     source_segments: &[String],
 ) -> anyhow::Result<Vec<String>> {
-    let output = serde_json::from_str::<TranslationOutput>(text).with_context(|| {
+    Ok(translations_detailed(provider, text, source_segments)?.segments)
+}
+
+pub(crate) fn translations_detailed(
+    provider: &str,
+    text: &str,
+    source_segments: &[String],
+) -> anyhow::Result<ParsedTranslations> {
+    let mut output = serde_json::from_str::<TranslationOutput>(text).with_context(|| {
         format!(
             "{provider} returned invalid translation JSON for {} segments; response was: {}",
             source_segments.len(),
             snippet(text),
         )
     })?;
+    if is_one_based_bijection(&output.translations, source_segments.len()) {
+        for segment in &mut output.translations {
+            segment.id -= 1;
+        }
+    }
+
     let mut translations = source_segments.to_vec();
     let mut translated = vec![false; source_segments.len()];
 
@@ -45,7 +75,33 @@ pub(crate) fn translations(
         }
     }
 
-    Ok(translations)
+    let missing_ids = translated
+        .iter()
+        .enumerate()
+        .filter_map(|(id, &present)| (!present).then_some(id))
+        .collect();
+
+    Ok(ParsedTranslations {
+        segments: translations,
+        missing_ids,
+    })
+}
+
+fn is_one_based_bijection(segments: &[TranslationOutputSegment], expected: usize) -> bool {
+    if expected == 0 || segments.len() != expected {
+        return false;
+    }
+    let mut seen = vec![false; expected];
+    for segment in segments {
+        let Some(zero_based) = segment.id.checked_sub(1) else {
+            return false;
+        };
+        if zero_based >= expected || seen[zero_based] {
+            return false;
+        }
+        seen[zero_based] = true;
+    }
+    true
 }
 
 /// Keeps a model response readable in a log line without truncating so hard
@@ -150,6 +206,23 @@ fn translation_system_prompt(request: &TranslationRequest) -> String {
         "}.trim_end());
     }
 
+    if request
+        .segment_notes
+        .iter()
+        .flatten()
+        .any(|note| !note.trim().is_empty())
+    {
+        prompt.push_str("\n\n");
+        prompt.push_str(
+            indoc! {"
+                Segment note requirements:
+                Some input segments include a `note` field providing speaker, tone, or terminology guidance for that specific segment.
+                Follow each segment's `note` when translating it, and never copy the note itself into `text`.
+            "}
+            .trim_end(),
+        );
+    }
+
     if request.image.is_some() {
         prompt.push_str("\n\n");
         prompt.push_str(indoc! {"
@@ -183,6 +256,8 @@ struct TranslationInput<'a> {
 struct TranslationInputSegment<'a> {
     id: usize,
     text: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    note: Option<&'a str>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -375,5 +450,36 @@ mod tests {
         let prompt = translation_system_prompt(&request);
         assert!(prompt.contains("attached original page image"));
         assert!(prompt.contains("Translate only the supplied segments"));
+    }
+
+    #[test]
+    fn normalizes_exact_one_based_id_bijection_and_tracks_missing_ids() {
+        let source = ["one".to_owned(), "two".to_owned(), "three".to_owned()];
+        let shifted = concat!(
+            r#"{"translations":["#,
+            r#"{"id":2,"text":"deux"},"#,
+            r#"{"id":1,"text":"un"},"#,
+            r#"{"id":3,"text":"trois"}"#,
+            "]}"
+        );
+        let parsed = translations_detailed("test", shifted, &source).unwrap();
+        assert_eq!(parsed.segments, ["un", "deux", "trois"]);
+        assert!(parsed.missing_ids.is_empty());
+
+        let missing = r#"{"translations":[{"id":0,"text":"un"},{"id":2,"text":"trois"}]}"#;
+        let parsed = translations_detailed("test", missing, &source).unwrap();
+        assert_eq!(parsed.segments, ["un", "two", "trois"]);
+        assert_eq!(parsed.missing_ids, vec![1]);
+    }
+
+    #[test]
+    fn segment_notes_serialize_only_when_present() {
+        let request = TranslationRequest::new(["first", "second"], Language::English)
+            .with_segment_notes([Some("Archaic knight tone".to_owned()), None]);
+        let (system, user) = prompts(&request).unwrap();
+        let input: serde_json::Value = serde_json::from_str(&user).unwrap();
+        assert_eq!(input["segments"][0]["note"], "Archaic knight tone");
+        assert!(input["segments"][1].get("note").is_none());
+        assert!(system.contains("Segment note requirements"));
     }
 }
