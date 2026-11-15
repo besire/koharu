@@ -9,8 +9,6 @@ on:
 permissions:
   actions: read
   contents: write
-  id-token: write
-  packages: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+          - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
           - platform: 'ubuntu-latest'
             args: ''
@@ -43,8 +41,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: koharu-app-${{ matrix.platform }}
-          # Main-branch builds own the shared dependency cache.
-          save-if: false
+          save-if: true
 
       - name: Install macOS CEF helper targets
         if: startsWith(matrix.platform, 'macos')
@@ -71,63 +68,47 @@ jobs:
           path: ~/.bun/install/cache
           key: ${{ matrix.platform }}-bun-${{ hashFiles('**/bun.lock') }}
 
-      - name: Install dependencies
-        run: bun install
-
-      - name: Setup Sentry CLI
-        uses: matbour/setup-sentry-cli@v3
+      - name: Cache tauri-cli
+        id: tauri_cli_cache
+        uses: actions/cache@v6
         with:
-          token: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          organization: ${{ vars.SENTRY_ORG }}
-          project: rust
+          path: |
+            ~/.cargo/bin/cargo-tauri
+            ~/.cargo/bin/cargo-tauri.exe
+          key: v2-${{ matrix.platform }}-tauri-cli-17a527316d3aee46f7185c178d3b3122d8ebfd7b
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ "${{ steps.tauri_cli_cache.outputs.cache-hit }}" = "true" ]; then
+            bun install --frozen-lockfile --ignore-scripts
+          else
+            bun install --frozen-lockfile
+          fi
+          cargo tauri --version
 
       - name: Generate release changelog
         id: release_notes
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          git fetch https://github.com/koharu-rs/koharu.git refs/tags/0.83.5:refs/tags/0.83.5 --no-tags || true
           {
-            echo 'release_body<<EOF'
-            bun git-cliff --current --strip all
-            echo 'EOF'
+            echo 'release_body<<RELEASE_NOTES_EOF'
+            bun git-cliff --offline --current --strip all
+            echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM }}
-          APPLE_CERTIFICATE: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ""
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
-          SIGNPATH_APPROVER_API_TOKEN: ${{ secrets.SIGNPATH_APPROVER_API_TOKEN }}
-          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         with:
           tauriScript: cargo tauri
           tagName: ${{ github.ref_name }}
           releaseName: ${{ github.ref_name }}
           releaseBody: ${{ steps.release_notes.outputs.release_body }}
           releaseDraft: false
-          prerelease: false
-          args: >-
-            ${{ matrix.args }}
-            --config '{"build":{"beforeBundleCommand":"bash .github/sentry.sh"}}'
-
-  winget:
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: vedantmgoyal9/winget-releaser@main
-        with:
-          identifier: mayocream.koharu
-          version: ${{ github.ref_name }}
-          installers-regex: '(-setup\.exe|\.msi)$'
-          token: ${{ secrets.WINGET_TOKEN }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }}

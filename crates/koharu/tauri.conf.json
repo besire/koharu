@@ -1,5 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/17a527316d3aee46f7185c178d3b3122d8ebfd7b/crates/tauri-schema-generator/schemas/config.schema.json",
+  "version": "0.84.1",
   "identifier": "Koharu",
   "build": {
     "devUrl": "http://localhost:3000",
@@ -43,8 +44,8 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ1QjAxQjRENzYxOTE1MDYKUldRR0ZSbDJUUnV3MWFXN09pNjhoRmNMSTV2Ylh3Wm9CZHhiRE01RVZtYXFLWVd4Vi9SbkE4QnUK",
-      "endpoints": ["https://github.com/koharu-rs/koharu/releases/latest/download/latest.json"],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5ODJFRENCREQ4NUU4NjMKUldSajZJWGR5KzJDV1l3WkV0TWpYUVcrUFRWQUZmdXdGVjlwc0w5Nm9yNmY1UzdWZ0NpZDJUQzEK",
+      "endpoints": ["https://github.com/besire/koharu/releases/latest/download/latest.json"],
       "windows": {
         "installMode": "quiet"
       }
