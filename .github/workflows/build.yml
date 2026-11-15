@@ -1,9 +1,8 @@
 name: Build
 
 on:
-  push:
-    branches: ['main']
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -47,7 +46,22 @@ jobs:
         with:
           path: ~/.bun/install/cache
           key: ${{ matrix.os }}-bun-${{ hashFiles('**/bun.lock') }}
-      - run: bun install
+      - name: Cache tauri-cli
+        id: tauri_cli_cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-tauri
+            ~/.cargo/bin/cargo-tauri.exe
+          key: v2-${{ matrix.os }}-tauri-cli-17a527316d3aee46f7185c178d3b3122d8ebfd7b
+      - name: Install dependencies (Bun & Tauri CLI)
+        shell: bash
+        run: |
+          if [ "${{ steps.tauri_cli_cache.outputs.cache-hit }}" = "true" ]; then
+            bun install --frozen-lockfile --ignore-scripts
+          else
+            bun install --frozen-lockfile
+          fi
       - run: bun run build
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
