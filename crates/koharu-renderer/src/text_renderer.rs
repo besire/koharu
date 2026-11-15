@@ -31,6 +31,7 @@ pub(crate) struct TextNodeDescriptor {
     pub(crate) width: f32,
     pub(crate) height: f32,
     pub(crate) balloon_contour: Option<Vec<(f32, f32)>>,
+    pub(crate) fits_region: bool,
     pub(crate) preferred_font: Option<String>,
     pub(crate) font_families: Vec<String>,
     pub(crate) font_weight: Option<u16>,
@@ -190,7 +191,7 @@ impl TextRenderer {
                 entity: descriptor.entity,
                 source,
             })?;
-        let automatic_maximum = || automatic_maximum(descriptor, bounds, is_bubble_text);
+        let automatic_maximum = || automatic_maximum(descriptor, bounds);
         let maximum = if descriptor.auto_fit {
             automatic_maximum()
         } else {
@@ -325,12 +326,8 @@ impl TextRenderer {
     }
 }
 
-fn automatic_maximum(
-    descriptor: &TextNodeDescriptor,
-    bounds: LayoutBox,
-    is_bubble_text: bool,
-) -> f32 {
-    if is_bubble_text {
+fn automatic_maximum(descriptor: &TextNodeDescriptor, bounds: LayoutBox) -> f32 {
+    if (descriptor.balloon_contour.is_some() || descriptor.fits_region) && !descriptor.point_text {
         if descriptor.writing_mode.is_vertical() {
             bounds.height
         } else {
@@ -660,6 +657,7 @@ mod tests {
             width: 7.0,
             height: 43.0,
             balloon_contour: Some(vec![(0.0, 0.0), (7.0, 0.0), (7.0, 43.0), (0.0, 43.0)]),
+            fits_region: true,
             preferred_font: Some(family.clone()),
             font_families: vec![family],
             font_weight: None,
@@ -691,14 +689,15 @@ mod tests {
     }
 
     #[test]
-    fn automatic_size_preserves_free_text_default_and_balloon_extent() {
-        let descriptor = TextNodeDescriptor {
+    fn automatic_size_preserves_free_text_default_and_region_extents() {
+        let free_text = TextNodeDescriptor {
             entity: EntityId::new(),
             text: "Hi".to_owned(),
             language: None,
             width: 240.0,
             height: 120.0,
             balloon_contour: None,
+            fits_region: false,
             preferred_font: Some("Arial".to_owned()),
             font_families: vec!["Arial".to_owned()],
             font_weight: None,
@@ -723,8 +722,33 @@ mod tests {
             height: 120.0,
         };
 
-        assert_eq!(automatic_maximum(&descriptor, bounds, false), 24.0);
-        assert_eq!(automatic_maximum(&descriptor, bounds, true), 240.0);
+        assert_eq!(automatic_maximum(&free_text, bounds), 24.0);
+
+        let fitted_horizontal = TextNodeDescriptor {
+            fits_region: true,
+            ..free_text.clone()
+        };
+        assert_eq!(automatic_maximum(&fitted_horizontal, bounds), 240.0);
+
+        let fitted_vertical = TextNodeDescriptor {
+            fits_region: true,
+            writing_mode: WritingMode::VerticalRl,
+            ..free_text.clone()
+        };
+        assert_eq!(automatic_maximum(&fitted_vertical, bounds), 120.0);
+
+        let point_text = TextNodeDescriptor {
+            fits_region: true,
+            point_text: true,
+            ..free_text.clone()
+        };
+        assert_eq!(automatic_maximum(&point_text, bounds), 24.0);
+
+        let balloon = TextNodeDescriptor {
+            balloon_contour: Some(vec![(0.0, 0.0), (240.0, 0.0), (240.0, 120.0), (0.0, 120.0)]),
+            ..free_text
+        };
+        assert_eq!(automatic_maximum(&balloon, bounds), 240.0);
     }
 
     #[test]

@@ -755,6 +755,7 @@ impl Traversal<'_> {
         } else {
             self.fit(entity, dependencies)?
         };
+        let has_placement = placement.is_some();
         let (geometry, frame, balloon_contour) = if let Some(geometry) = authored {
             let Some(frame) = geometry_frame(&geometry, layout.angle_degrees) else {
                 return Ok(None);
@@ -775,17 +776,20 @@ impl Traversal<'_> {
             )
         };
         let typography = self.snapshot.component::<Typography>(entity)?;
-        let analysis =
+        let (has_source_region, analysis) =
             if let Some(recognized) = self.snapshot.relation_from::<RecognizedFrom>(content)? {
                 dependencies.insert(RenderDependency::Relation(recognized.id()));
                 dependencies.insert(RenderDependency::Entity(recognized.value().target));
                 dependencies.insert(component_dependency::<OcrAnalysis>(
                     recognized.value().target,
                 ));
-                self.snapshot
-                    .component::<OcrAnalysis>(recognized.value().target)?
+                (
+                    true,
+                    self.snapshot
+                        .component::<OcrAnalysis>(recognized.value().target)?,
+                )
             } else {
-                None
+                (false, None)
             };
         let writing_mode =
             resolve_writing_mode(&text, frame.bounds, typography.as_ref(), analysis.as_ref());
@@ -836,6 +840,7 @@ impl Traversal<'_> {
             width: frame.bounds.width,
             height: frame.bounds.height,
             balloon_contour,
+            fits_region: has_placement || has_source_region,
             preferred_font,
             font_families,
             font_weight: typography.as_ref().and_then(|value| value.font_weight),
@@ -2369,5 +2374,141 @@ mod tests {
             .await
             .unwrap_err();
         assert!(error.to_string().contains("not contiguous"));
+    }
+
+    #[tokio::test]
+    async fn fitted_non_bubble_text_scales_to_region_while_free_text_keeps_default_size() {
+        let mut session = Session::memory().await.unwrap();
+        let mut ids = None;
+        let create = session
+            .snapshot()
+            .patch(|edit| {
+                let page = edit.add_page(PageDraft::new("page", 400.0, 320.0), At::End)?;
+                let vertical_typography = Typography {
+                    origin: Origin::User,
+                    preferred_font: None,
+                    font_weight: None,
+                    font_style: None,
+                    size: None,
+                    auto_fit: true,
+                    color: None,
+                    stroke_color: None,
+                    stroke_width: None,
+                    alignment: None,
+                    writing_mode: Some(koharu_scene::WritingMode::Vertical),
+                    line_height: None,
+                    letter_spacing: None,
+                    extensions: BTreeMap::new(),
+                };
+
+                let detected_region = edit.add_analysis_region::<koharu_scene::TextRegion>(
+                    page,
+                    At::End,
+                    &Geometry::rectangle(20.0, 20.0, 90.0, 260.0),
+                    None,
+                )?;
+                let detected_content = edit.add_text_content(page, At::End)?;
+                edit.set(
+                    detected_content,
+                    &Translation {
+                        text: Authored::user("Hi".to_owned()),
+                        language: None,
+                    },
+                )?;
+                let detected_layer = edit.add_text_layer(
+                    page,
+                    At::End,
+                    detected_content,
+                    &SceneTextLayout {
+                        origin: Origin::User,
+                        kind: TextLayoutKind::Paragraph,
+                        angle_degrees: None,
+                    },
+                )?;
+                edit.set(detected_layer, &vertical_typography)?;
+                edit.relate::<FitsTo>(detected_layer, detected_region)?;
+
+                let custom_ocr_region = edit.add_analysis_region::<koharu_scene::TextRegion>(
+                    page,
+                    At::End,
+                    &Geometry::rectangle(130.0, 20.0, 90.0, 260.0),
+                    None,
+                )?;
+                let custom_ocr_content = edit.add_text_content(page, At::End)?;
+                edit.set(
+                    custom_ocr_content,
+                    &Translation {
+                        text: Authored::user("Hi".to_owned()),
+                        language: None,
+                    },
+                )?;
+                edit.relate::<RecognizedFrom>(custom_ocr_content, custom_ocr_region)?;
+                let custom_ocr_layer = edit.add_text_layer(
+                    page,
+                    At::End,
+                    custom_ocr_content,
+                    &SceneTextLayout {
+                        origin: Origin::User,
+                        kind: TextLayoutKind::Paragraph,
+                        angle_degrees: None,
+                    },
+                )?;
+                edit.set(
+                    custom_ocr_layer,
+                    &Geometry::rectangle(130.0, 20.0, 90.0, 260.0),
+                )?;
+                edit.set(custom_ocr_layer, &vertical_typography)?;
+
+                let free_content = edit.add_text_content(page, At::End)?;
+                edit.set(
+                    free_content,
+                    &Translation {
+                        text: Authored::user("Hi".to_owned()),
+                        language: None,
+                    },
+                )?;
+                let free_layer = edit.add_text_layer(
+                    page,
+                    At::End,
+                    free_content,
+                    &SceneTextLayout {
+                        origin: Origin::User,
+                        kind: TextLayoutKind::Paragraph,
+                        angle_degrees: None,
+                    },
+                )?;
+                edit.set(free_layer, &Geometry::rectangle(240.0, 20.0, 140.0, 260.0))?;
+                edit.set(free_layer, &vertical_typography)?;
+
+                ids = Some((page, detected_layer, custom_ocr_layer, free_layer));
+                Ok(())
+            })
+            .unwrap();
+        let snapshot = session.commit(create).await.unwrap().snapshot;
+        let (page, detected_layer, custom_ocr_layer, free_layer) = ids.unwrap();
+        let font = crate::fonts::FontSystem::new().first_font().unwrap();
+        let renderer = Renderer::with_typesetting(TypesettingConfig {
+            font_families: vec![font.family_name().to_owned()],
+            ..TypesettingConfig::default()
+        });
+        let frame = renderer.render(&snapshot, page).await.unwrap();
+
+        for fitted in [detected_layer, custom_ocr_layer] {
+            let LayerKind::Text(metadata) = frame.layer(fitted).unwrap().kind() else {
+                panic!("expected text layer");
+            };
+            assert!(
+                metadata.font_size > 24.0,
+                "fitted region text should scale above default 24px, got {}",
+                metadata.font_size
+            );
+            assert!(metadata.rendered_bounds.width <= 90.0 + 1e-3);
+            assert!(metadata.rendered_bounds.height <= 260.0 + 1e-3);
+        }
+
+        let LayerKind::Text(free_metadata) = frame.layer(free_layer).unwrap().kind() else {
+            panic!("expected text layer");
+        };
+        assert_eq!(free_metadata.font_size, 24.0);
     }
 }
