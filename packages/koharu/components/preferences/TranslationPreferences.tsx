@@ -177,6 +177,42 @@ export function TranslationPreferences({
 
       <PreferenceSection title={t('settings.translation.output')}>
         <PreferenceRow
+          title={t('model.sourceLanguage')}
+          description={t('settings.translation.sourceLanguageDescription')}
+        >
+          <Select
+            value={value.source_language ?? 'auto'}
+            items={{
+              auto: t('model.sourceLanguageAuto'),
+              ...Object.fromEntries(
+                languageChoices.map((language) => [language.tag, language.name]),
+              ),
+            }}
+            onValueChange={(source_language) =>
+              source_language &&
+              onChange({
+                ...value,
+                source_language: source_language === 'auto' ? null : source_language,
+              })
+            }
+          >
+            <SelectTrigger
+              aria-label={t('model.sourceLanguage')}
+              className='h-8 w-full text-[11px]'
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='auto'>{t('model.sourceLanguageAuto')}</SelectItem>
+              {languageChoices.map((language) => (
+                <SelectItem key={language.tag} value={language.tag}>
+                  {language.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </PreferenceRow>
+        <PreferenceRow
           title={t('model.targetLanguage')}
           description={t('settings.translation.targetLanguageDescription')}
         >

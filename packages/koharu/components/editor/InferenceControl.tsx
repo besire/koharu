@@ -115,10 +115,15 @@ function RuntimeSelector({
   const modelLabel =
     choices.find((choice) => model && modelKey(choice) === modelKey(model))?.name ??
     (model ? (model.model ?? t('inference.providerDefault')) : t('inference.noModel'))
-  const outputLabel =
+  const sourceLabel = translation?.source_language
+    ? (languages.find((language) => language.tag === translation.source_language)?.name ??
+      translation.source_language)
+    : null
+  const targetLabel =
     languages.find((language) => language.tag === translation?.target_language)?.name ??
     translation?.target_language ??
     t('inference.notSet')
+  const outputLabel = sourceLabel ? `${sourceLabel} → ${targetLabel}` : targetLabel
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
@@ -166,6 +171,7 @@ function RuntimeSelector({
       ...preferences.pipeline,
       translation: {
         ...translation,
+        source_language: draft.sourceLanguage,
         target_language: draft.targetLanguage,
         instructions: draft.instructions || null,
       },
@@ -333,6 +339,7 @@ function RuntimeSelector({
 
         {view === 'output' && translation && (
           <OutputPicker
+            sourceLanguage={translation.source_language ?? null}
             targetLanguage={translation.target_language}
             instructions={translation.instructions}
             presets={translation.instruction_presets ?? []}

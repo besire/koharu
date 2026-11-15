@@ -297,6 +297,8 @@
     "baseUrl": "عنوان URL الأساسي",
     "default": "افتراضي",
     "instructions": "التعليمات",
+    "sourceLanguage": "اللغة المصدر",
+    "sourceLanguageAuto": "كشف تلقائي",
     "targetLanguage": "اللغة المستهدفة"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "تعليمات الترجمة",
     "instructionsPlaceholder": "إرشادات اختيارية للنبرة والأسماء والتنسيق.",
     "loadPreset": "تحميل إعداد مسبق",
+    "sourceLanguage": "اللغة المصدر",
     "targetLanguage": "اللغة المستهدفة",
     "title": "مخرجات الترجمة"
   },
@@ -501,6 +504,7 @@
       "savePreset": "حفظ",
       "savedPresets": "الإعدادات المسبقة المحفوظة",
       "selectQuantization": "اختر تكميمًا",
+      "sourceLanguageDescription": "اتركه على الكشف التلقائي أو حدد لغة النص الأصلي.",
       "targetLanguageDescription": "اختر اللغة التي تُترجم إليها النصوص.",
       "title": "الترجمة",
       "translationModel": "نموذج الترجمة",

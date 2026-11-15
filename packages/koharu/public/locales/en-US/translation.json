@@ -297,6 +297,8 @@
     "baseUrl": "Base URL",
     "default": "Default",
     "instructions": "Instructions",
+    "sourceLanguage": "Source language",
+    "sourceLanguageAuto": "Auto-detect",
     "targetLanguage": "Target language"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "Translation instructions",
     "instructionsPlaceholder": "Optional guidance for tone, names, and formatting.",
     "loadPreset": "Load preset",
+    "sourceLanguage": "Source language",
     "targetLanguage": "Target language",
     "title": "Translation output"
   },
@@ -501,6 +504,7 @@
       "savePreset": "Save",
       "savedPresets": "Saved presets",
       "selectQuantization": "Select a quantization",
+      "sourceLanguageDescription": "Leave on auto-detect or specify the original language of the comic.",
       "targetLanguageDescription": "Choose the language to translate text into.",
       "title": "Translation",
       "translationModel": "Translation model",

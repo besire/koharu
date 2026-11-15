@@ -297,6 +297,8 @@
     "baseUrl": "基礎 URL",
     "default": "預設",
     "instructions": "翻譯說明",
+    "sourceLanguage": "來源語言",
+    "sourceLanguageAuto": "自動偵測",
     "targetLanguage": "目標語言"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "翻譯指示",
     "instructionsPlaceholder": "關於語氣、名稱和格式的選填說明。",
     "loadPreset": "載入預設",
+    "sourceLanguage": "來源語言",
     "targetLanguage": "目標語言",
     "title": "翻譯輸出"
   },
@@ -501,6 +504,7 @@
       "savePreset": "儲存",
       "savedPresets": "已儲存的預設",
       "selectQuantization": "選擇量化方式",
+      "sourceLanguageDescription": "保持自動偵測，或手動指定原文所屬的語言。",
       "targetLanguageDescription": "選擇文字要翻譯成的語言。",
       "title": "譯文",
       "translationModel": "翻譯模型",

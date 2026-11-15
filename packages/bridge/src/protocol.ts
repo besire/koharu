@@ -512,6 +512,7 @@ export type Translation = {
 export type TranslationConfig = {
 	model: ModelSelection,
 	generation: GenerationConfig,
+	source_language?: string | null,
 	target_language: string,
 	instructions: string | null,
 	instruction_presets?: InstructionPreset[],

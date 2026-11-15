@@ -297,6 +297,8 @@
     "baseUrl": "ベース URL",
     "default": "既定",
     "instructions": "翻訳指示",
+    "sourceLanguage": "原文の言語",
+    "sourceLanguageAuto": "自動検出",
     "targetLanguage": "対象言語"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "翻訳指示",
     "instructionsPlaceholder": "文体、固有名詞、書式に関する任意の指示。",
     "loadPreset": "プリセットを読み込む",
+    "sourceLanguage": "原文の言語",
     "targetLanguage": "対象言語",
     "title": "翻訳出力"
   },
@@ -501,6 +504,7 @@
       "savePreset": "保存",
       "savedPresets": "保存済みプリセット",
       "selectQuantization": "量子化方式を選択",
+      "sourceLanguageDescription": "自動検出のままにするか、原文の言語を指定します。",
       "targetLanguageDescription": "テキストの翻訳先言語を選択します。",
       "title": "翻訳",
       "translationModel": "翻訳モデル",

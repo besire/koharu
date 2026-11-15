@@ -91,9 +91,11 @@ impl StageProcessor for Processor {
         if !context.is_empty() {
             request = request.with_context(context);
         }
-        if let Some(source_language) =
-            dominant_source_language(&targets, self.config.target_language)
-        {
+        if let Some(source_language) = resolved_source_language(
+            self.config.source_language,
+            &targets,
+            self.config.target_language,
+        ) {
             request = request.with_source_language(source_language);
         }
         if let Some(instructions) = self.config.instructions.as_deref() {
@@ -142,6 +144,17 @@ impl StageProcessor for Processor {
         }
         finish(edit)
     }
+}
+
+fn resolved_source_language(
+    configured: Option<Language>,
+    targets: &[TranslationTarget],
+    target_language: Language,
+) -> Option<Language> {
+    if let Some(language) = configured {
+        return (language != target_language).then_some(language);
+    }
+    dominant_source_language(targets, target_language)
 }
 
 fn dominant_source_language(
@@ -326,6 +339,63 @@ mod tests {
                 TranslationContext::new("src-2", "dst-2"),
                 TranslationContext::new("src-3", "dst-3"),
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn configured_source_language_overrides_detected_tags_while_auto_uses_page_tags() {
+        let mut session = Session::memory().await.unwrap();
+        let mut content_id = None;
+        let patch = session
+            .snapshot()
+            .patch(|edit| {
+                let page = edit.add_page(PageDraft::new("p", 10.0, 10.0), At::End)?;
+                content_id = Some(edit.add_text_content(page, At::End)?);
+                Ok(())
+            })
+            .unwrap();
+        session.commit(patch).await.unwrap();
+        let content = content_id.unwrap();
+        let targets = vec![TranslationTarget {
+            content,
+            source: "What happened?".to_owned(),
+            note: None,
+            language: Some(Language::Japanese),
+        }];
+
+        assert_eq!(
+            resolved_source_language(
+                Some(Language::English),
+                &targets,
+                Language::ChineseSimplified
+            ),
+            Some(Language::English)
+        );
+        assert_eq!(
+            resolved_source_language(
+                Some(Language::ChineseTraditional),
+                &targets,
+                Language::ChineseSimplified
+            ),
+            Some(Language::ChineseTraditional)
+        );
+        assert_eq!(
+            resolved_source_language(Some(Language::English), &targets, Language::English),
+            None
+        );
+        assert_eq!(
+            resolved_source_language(None, &targets, Language::ChineseSimplified),
+            Some(Language::Japanese)
+        );
+        let unmarked = vec![TranslationTarget {
+            content,
+            source: "What happened?".to_owned(),
+            note: None,
+            language: None,
+        }];
+        assert_eq!(
+            resolved_source_language(None, &unmarked, Language::ChineseSimplified),
+            None
         );
     }
 }

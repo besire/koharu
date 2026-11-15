@@ -148,6 +148,7 @@ const preferences: Preferences = {
         reasoning: true,
       },
       generation: { vision: true, reasoning: false },
+      source_language: null,
       target_language: 'en-US',
       instructions: null,
       instruction_presets: [],
@@ -1191,6 +1192,7 @@ describe('greenfield editor', () => {
         ...preferences.pipeline,
         translation: {
           ...preferences.pipeline.translation,
+          source_language: 'en-US',
           target_language: 'ja-JP',
           instructions: 'Keep character names unchanged.',
         },
@@ -1206,6 +1208,10 @@ describe('greenfield editor', () => {
     await user.click(screen.getByRole('button', { name: 'Processing settings' }))
     await waitFor(() => expect(commands.getTranslationModels).toHaveBeenCalled())
     await user.click(screen.getByRole('button', { name: /Output English/ }))
+    const sourceLanguage = screen.getByRole('combobox', { name: 'Source language' })
+    expect(sourceLanguage).toHaveTextContent('Auto-detect')
+    await user.click(sourceLanguage)
+    await user.click(await screen.findByRole('option', { name: 'English' }))
     const language = screen.getByRole('combobox', { name: 'Target language' })
     expect(language).toHaveTextContent('English')
     expect(language).not.toHaveTextContent('en-US')
@@ -2137,6 +2143,21 @@ describe('greenfield editor', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Translation' }))
+    const sourceSelect = screen.getByRole('combobox', { name: 'Source language' })
+    expect(sourceSelect).toHaveTextContent('Auto-detect')
+    await user.click(sourceSelect)
+    await user.click(await screen.findByRole('option', { name: 'Japanese' }))
+    await waitFor(() =>
+      expect(save).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          translation: expect.objectContaining({
+            source_language: 'ja-JP',
+          }),
+        }),
+        preferences.providers,
+        preferences.typesetting,
+      ),
+    )
     await user.type(screen.getByRole('textbox', { name: 'Source term' }), '先輩')
     await user.type(screen.getByRole('textbox', { name: 'Translated term' }), 'Senpai')
     await user.click(screen.getByRole('button', { name: 'Add glossary entry' }))

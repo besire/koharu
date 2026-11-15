@@ -297,6 +297,8 @@
     "baseUrl": "Базовый URL",
     "default": "По умолчанию",
     "instructions": "Инструкции",
+    "sourceLanguage": "Исходный язык",
+    "sourceLanguageAuto": "Определять автоматически",
     "targetLanguage": "Язык перевода"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "Инструкции по переводу",
     "instructionsPlaceholder": "Необязательные указания по стилю, именам и форматированию.",
     "loadPreset": "Загрузить пресет",
+    "sourceLanguage": "Исходный язык",
     "targetLanguage": "Язык перевода",
     "title": "Вывод перевода"
   },
@@ -501,6 +504,7 @@
       "savePreset": "Сохранить",
       "savedPresets": "Сохранённые пресеты",
       "selectQuantization": "Выбрать квантование",
+      "sourceLanguageDescription": "Оставьте автоопределение или укажите язык исходного текста.",
       "targetLanguageDescription": "Выберите язык, на который нужно перевести текст.",
       "title": "Перевод",
       "translationModel": "Модель перевода",

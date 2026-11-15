@@ -37,6 +37,9 @@ struct Arguments {
     #[arg(long, value_enum, default_value = "lama")]
     inpainting: InpaintingChoice,
 
+    #[arg(long)]
+    source_language: Option<Language>,
+
     #[arg(long, default_value = "en-US")]
     target_language: Language,
 
@@ -117,6 +120,7 @@ impl Arguments {
                     reasoning: true,
                 },
                 generation: GenerationConfig::default(),
+                source_language: self.source_language,
                 target_language: self.target_language,
                 instructions: self.translation_instructions.clone(),
                 instruction_presets: Vec::new(),

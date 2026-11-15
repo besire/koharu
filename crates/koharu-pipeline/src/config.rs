@@ -189,6 +189,9 @@ pub struct GlossaryEntry {
 pub struct TranslationConfig {
     pub model: koharu_translator::ModelSelection,
     pub generation: GenerationConfig,
+    #[serde(default)]
+    #[specta(type = Option<String>)]
+    pub source_language: Option<Language>,
     #[specta(type = String)]
     pub target_language: Language,
     pub instructions: Option<String>,
@@ -203,6 +206,7 @@ impl Default for TranslationConfig {
         Self {
             model: koharu_translator::ModelSelection::default(),
             generation: GenerationConfig::default(),
+            source_language: None,
             target_language: Language::English,
             instructions: None,
             instruction_presets: Vec::new(),

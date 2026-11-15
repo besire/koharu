@@ -16,12 +16,16 @@ import {
 } from '@koharu/ui/components/select'
 import { Textarea } from '@koharu/ui/components/textarea'
 
+const AUTO_SOURCE_LANGUAGE = 'auto'
+
 export type OutputDraft = {
+  sourceLanguage: string | null
   targetLanguage: string
   instructions: string
 }
 
 export function OutputPicker({
+  sourceLanguage = null,
   targetLanguage,
   instructions,
   presets,
@@ -31,6 +35,7 @@ export function OutputPicker({
   onBack,
   onChange,
 }: {
+  sourceLanguage?: string | null
   targetLanguage: string
   instructions: string | null
   presets: InstructionPreset[]
@@ -42,11 +47,14 @@ export function OutputPicker({
 }) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<OutputDraft>({
+    sourceLanguage: sourceLanguage ?? null,
     targetLanguage,
     instructions: instructions ?? '',
   })
   const changed =
-    draft.targetLanguage !== targetLanguage || draft.instructions !== (instructions ?? '')
+    draft.sourceLanguage !== (sourceLanguage ?? null) ||
+    draft.targetLanguage !== targetLanguage ||
+    draft.instructions !== (instructions ?? '')
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const latest = useRef({ changed, disabled, draft, onChange, saving })
   const submitted = useRef<OutputDraft | null>(null)
@@ -122,6 +130,42 @@ export function OutputPicker({
       </div>
 
       <div className='grid gap-2 p-1'>
+        <label className='grid gap-1 text-[9px] text-muted-foreground'>
+          {t('model.sourceLanguage')}
+          <Select
+            value={draft.sourceLanguage ?? AUTO_SOURCE_LANGUAGE}
+            items={{
+              [AUTO_SOURCE_LANGUAGE]: t('model.sourceLanguageAuto'),
+              ...Object.fromEntries(
+                languageChoices.map((language) => [language.tag, language.name]),
+              ),
+            }}
+            disabled={disabled}
+            onValueChange={(next) =>
+              next &&
+              setDraft((current) => ({
+                ...current,
+                sourceLanguage: next === AUTO_SOURCE_LANGUAGE ? null : next,
+              }))
+            }
+          >
+            <SelectTrigger
+              aria-label={t('outputPicker.sourceLanguage')}
+              className='h-7 w-full text-[11px]'
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={AUTO_SOURCE_LANGUAGE}>{t('model.sourceLanguageAuto')}</SelectItem>
+              {languageChoices.map((language) => (
+                <SelectItem key={language.tag} value={language.tag}>
+                  {language.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+
         <label className='grid gap-1 text-[9px] text-muted-foreground'>
           {t('model.targetLanguage')}
           <Select
@@ -200,5 +244,9 @@ export function OutputPicker({
 }
 
 function sameDraft(left: OutputDraft | null, right: OutputDraft): boolean {
-  return left?.targetLanguage === right.targetLanguage && left.instructions === right.instructions
+  return (
+    left?.sourceLanguage === right.sourceLanguage &&
+    left.targetLanguage === right.targetLanguage &&
+    left.instructions === right.instructions
+  )
 }

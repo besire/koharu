@@ -297,6 +297,8 @@
     "baseUrl": "Temel URL",
     "default": "Varsayılan",
     "instructions": "Çeviri talimatları",
+    "sourceLanguage": "Kaynak dil",
+    "sourceLanguageAuto": "Otomatik algıla",
     "targetLanguage": "Hedef dil"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "Çeviri talimatları",
     "instructionsPlaceholder": "Üslup, adlar ve biçimlendirme için isteğe bağlı yönlendirme.",
     "loadPreset": "Hazır ayarı yükle",
+    "sourceLanguage": "Kaynak dil",
     "targetLanguage": "Hedef dil",
     "title": "Çeviri çıktısı"
   },
@@ -501,6 +504,7 @@
       "savePreset": "Kaydet",
       "savedPresets": "Kayıtlı hazır ayarlar",
       "selectQuantization": "Niceleme seç",
+      "sourceLanguageDescription": "Otomatik algılamada bırakın veya kaynak metnin dilini belirtin.",
       "targetLanguageDescription": "Metnin çevrileceği dili seçin.",
       "title": "Çeviri",
       "translationModel": "Çeviri modeli",

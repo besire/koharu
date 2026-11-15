@@ -297,6 +297,8 @@
     "baseUrl": "基础 URL",
     "default": "默认",
     "instructions": "翻译说明",
+    "sourceLanguage": "源语言",
+    "sourceLanguageAuto": "自动检测",
     "targetLanguage": "目标语言"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "翻译说明",
     "instructionsPlaceholder": "好填语气、名字搭格式个说明，也好弗填。",
     "loadPreset": "加载预设",
+    "sourceLanguage": "源语言",
     "targetLanguage": "目标语言",
     "title": "翻译输出"
   },
@@ -501,6 +504,7 @@
       "savePreset": "保存",
       "savedPresets": "保存好个预设",
       "selectQuantization": "选量化方式",
+      "sourceLanguageDescription": "保持自动检测，或者手动指定原文语言。",
       "targetLanguageDescription": "选译文要用个目标语言。",
       "title": "译文",
       "translationModel": "翻译模型",

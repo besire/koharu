@@ -20,19 +20,26 @@ use koharu_scene::{
     At, Authored, EntityId, Geometry, LanguageTag, OcrAnalysis, Origin, Presents, RecognizedFrom,
     Region, RegionSpec, SourceText, TextDirection, TextLayout, TextRegion,
 };
+use koharu_translator::Language;
 
 const PRODUCER: &str = "dev.koharu.pipeline.ocr";
 
 pub(super) struct Processor {
     config: OcrModel,
+    source_language: Option<Language>,
     device: koharu_ml::Device,
     model: ModelCell<Model>,
 }
 
 impl Processor {
-    pub(super) fn new(config: OcrModel, device: koharu_ml::Device) -> Self {
+    pub(super) fn new(
+        config: OcrModel,
+        source_language: Option<Language>,
+        device: koharu_ml::Device,
+    ) -> Self {
         Self {
             config,
+            source_language,
             device,
             model: ModelCell::new(),
         }
@@ -67,7 +74,7 @@ impl StageProcessor for Processor {
             .await
             .as_ref()
             .ok_or_else(|| anyhow!("OCR model is not loaded"))?
-            .run(input)
+            .run(input, &self.config, self.source_language)
             .await
     }
 }
@@ -105,7 +112,12 @@ impl Model {
         }
     }
 
-    async fn run(&self, input: StageInput) -> Result<koharu_scene::Patch> {
+    async fn run(
+        &self,
+        input: StageInput,
+        ocr_model: &OcrModel,
+        source_language: Option<Language>,
+    ) -> Result<koharu_scene::Patch> {
         let model_name = match self {
             Self::Manga(_) => "manga-ocr",
             Self::Baberu(_) => "baberu-ocr",
@@ -258,10 +270,12 @@ impl Model {
                     region
                 }
             };
-            let language = result
-                .previous
-                .and_then(|value| value.language)
-                .or_else(|| LanguageTag::new("ja-JP").ok());
+            let language = resolve_ocr_language(
+                source_language,
+                ocr_model,
+                result.previous.as_ref(),
+                &result.text,
+            );
             let source = SourceText {
                 text: Authored::generated(result.text, generation.clone()),
                 language,
@@ -518,9 +532,58 @@ fn crop(source: &DynamicImage, geometry: &Geometry) -> Result<DynamicImage> {
     Ok(source.crop_imm(x, y, right - x, bottom - y))
 }
 
+fn resolve_ocr_language(
+    configured: Option<Language>,
+    model: &OcrModel,
+    previous: Option<&SourceText>,
+    text: &str,
+) -> Option<LanguageTag> {
+    if let Some(previous) = previous
+        && matches!(previous.text.origin, Origin::User)
+        && previous.language.is_some()
+    {
+        return previous.language.clone();
+    }
+    if let Some(language) = configured {
+        return LanguageTag::new(language.tag()).ok();
+    }
+    match model {
+        OcrModel::MangaOcr | OcrModel::BaberuOcr => LanguageTag::new("ja-JP").ok(),
+        OcrModel::PaddleOcrVl1_6 | OcrModel::HayaiOcr | OcrModel::PpOcrV6 => {
+            infer_script_language(text)
+        }
+    }
+}
+
+fn infer_script_language(text: &str) -> Option<LanguageTag> {
+    let mut has_kana = false;
+    let mut has_hangul = false;
+    for ch in text.chars() {
+        if matches!(ch, '\u{3041}'..='\u{3096}' | '\u{30A1}'..='\u{30FA}' | '\u{FF66}'..='\u{FF9F}')
+        {
+            has_kana = true;
+        } else if matches!(
+            ch,
+            '\u{AC00}'..='\u{D7A3}' | '\u{1100}'..='\u{11FF}' | '\u{3131}'..='\u{318E}'
+        ) {
+            has_hangul = true;
+        }
+    }
+    match (has_kana, has_hangul) {
+        (true, false) => LanguageTag::new("ja-JP").ok(),
+        (false, true) => LanguageTag::new("ko-KR").ok(),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{normalize_ellipsis, normalize_ocr_text};
+    use koharu_scene::{Authored, LanguageTag, SourceText};
+    use koharu_translator::Language;
+
+    use crate::OcrModel;
+
+    use super::{normalize_ellipsis, normalize_ocr_text, resolve_ocr_language};
 
     #[test]
     fn repeated_placeholder_glyphs_are_an_ellipsis() {
@@ -573,5 +636,52 @@ mod tests {
         let tall = image::DynamicImage::new_rgb8(20, 80);
         let oriented = super::orient_line_crop(&tall);
         assert_eq!((oriented.width(), oriented.height()), (80, 20));
+    }
+
+    #[test]
+    fn ocr_source_language_honors_explicit_config_and_avoids_false_japanese_tags() {
+        assert_eq!(
+            resolve_ocr_language(
+                Some(Language::Korean),
+                &OcrModel::PaddleOcrVl1_6,
+                None,
+                "Hello"
+            ),
+            Some(LanguageTag::new("ko-KR").unwrap())
+        );
+        assert_eq!(
+            resolve_ocr_language(None, &OcrModel::BaberuOcr, None, "了解"),
+            Some(LanguageTag::new("ja-JP").unwrap())
+        );
+        assert_eq!(
+            resolve_ocr_language(None, &OcrModel::PaddleOcrVl1_6, None, "しばらくは大人しく"),
+            Some(LanguageTag::new("ja-JP").unwrap())
+        );
+        assert_eq!(
+            resolve_ocr_language(None, &OcrModel::HayaiOcr, None, "안녕하세요"),
+            Some(LanguageTag::new("ko-KR").unwrap())
+        );
+        assert_eq!(
+            resolve_ocr_language(None, &OcrModel::PaddleOcrVl1_6, None, "What happened?"),
+            None
+        );
+        assert_eq!(
+            resolve_ocr_language(None, &OcrModel::PpOcrV6, None, "今天天气真好"),
+            None
+        );
+
+        let user_tagged = SourceText {
+            text: Authored::user(String::new()),
+            language: Some(LanguageTag::new("fr-FR").unwrap()),
+        };
+        assert_eq!(
+            resolve_ocr_language(
+                Some(Language::Japanese),
+                &OcrModel::PaddleOcrVl1_6,
+                Some(&user_tagged),
+                "Bonjour"
+            ),
+            Some(LanguageTag::new("fr-FR").unwrap())
+        );
     }
 }

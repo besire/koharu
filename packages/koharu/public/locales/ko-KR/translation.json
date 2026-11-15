@@ -297,6 +297,8 @@
     "baseUrl": "기본 URL",
     "default": "기본값",
     "instructions": "번역 지침",
+    "sourceLanguage": "원문 언어",
+    "sourceLanguageAuto": "자동 감지",
     "targetLanguage": "대상 언어"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "번역 지침",
     "instructionsPlaceholder": "말투, 이름, 서식에 관한 선택적 지침입니다.",
     "loadPreset": "프리셋 불러오기",
+    "sourceLanguage": "원문 언어",
     "targetLanguage": "대상 언어",
     "title": "번역 출력"
   },
@@ -501,6 +504,7 @@
       "savePreset": "저장",
       "savedPresets": "저장된 프리셋",
       "selectQuantization": "양자화 선택",
+      "sourceLanguageDescription": "자동 감지를 유지하거나 원문 언어를 직접 지정합니다.",
       "targetLanguageDescription": "텍스트를 번역할 언어를 선택합니다.",
       "title": "번역",
       "translationModel": "번역 모델",

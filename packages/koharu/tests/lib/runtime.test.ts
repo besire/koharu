@@ -37,6 +37,7 @@ const preferences: Preferences = {
         reasoning: false,
       },
       generation: { vision: true, reasoning: true },
+      source_language: null,
       target_language: 'en-US',
       instructions: null,
       instruction_presets: [],

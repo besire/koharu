@@ -297,6 +297,8 @@
     "baseUrl": "URL de base",
     "default": "Par défaut",
     "instructions": "Instructions",
+    "sourceLanguage": "Langue source",
+    "sourceLanguageAuto": "Détection automatique",
     "targetLanguage": "Langue cible"
   },
   "modelPicker": {
@@ -334,6 +336,7 @@
     "instructions": "Instructions de traduction",
     "instructionsPlaceholder": "Indications facultatives sur le ton, les noms et la mise en forme.",
     "loadPreset": "Charger un préréglage",
+    "sourceLanguage": "Langue source",
     "targetLanguage": "Langue cible",
     "title": "Sortie de traduction"
   },
@@ -501,6 +504,7 @@
       "savePreset": "Enregistrer",
       "savedPresets": "Préréglages enregistrés",
       "selectQuantization": "Sélectionner une quantification",
+      "sourceLanguageDescription": "Laissez la détection automatique ou indiquez la langue du texte source.",
       "targetLanguageDescription": "Choisissez la langue dans laquelle traduire le texte.",
       "title": "Traduction",
       "translationModel": "Modèle de traduction",
