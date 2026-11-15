@@ -183,13 +183,15 @@ fn grown(
 }
 
 /// A block whose source is the lettering: its box turned back by its tilt,
-/// and the turn, in its direction, at its size, its outline as its stroke.
+/// and the turn, in its direction, at its size, its ink and outline as its
+/// fill and stroke.
 fn block(lettering: &Lettering, typography: Option<&Typography>) -> Value {
     let [x0, y0, x1, y1] = lettering.bbox;
     let (vertical, tilt) = typography.map_or((y1 - y0 > x1 - x0, 0.0), |found| {
         (found.vertical, found.tilt)
     });
     let (bounds, transform) = turned(lettering.bbox, tilt);
+    let fill = typography.and_then(|found| found.ink).and_then(ink_fill);
     let outline = typography.and_then(|found| found.outline);
     let stroke = outline.map(|outline| {
         let [red, green, blue] = outline.color.map(|channel| f32::from(channel) / 255.0);
@@ -207,11 +209,29 @@ fn block(lettering: &Lettering, typography: Option<&Typography>) -> Value {
             "transform": transform,
             "style": {"chars": {
                 "size": typography.map(|found| found.size),
+                "fill": fill,
                 "stroke": stroke,
                 "stroke_width": outline.map(|outline| outline.width),
             }},
         },
     })
+}
+
+/// Non-black fill from measured `ink`: dark neutral ink stays `None` (default
+/// black), near-white ink snaps to pure white, and coloured or grey ink keeps
+/// its measured RGB.
+fn ink_fill(ink: [u8; 3]) -> Option<Rgba> {
+    let min = ink[0].min(ink[1]).min(ink[2]);
+    let max = ink[0].max(ink[1]).max(ink[2]);
+    let spread = max - min;
+    if max <= 48 && spread <= 16 {
+        return None;
+    }
+    if min >= 224 && spread <= 20 {
+        return Some(Rgba([1.0, 1.0, 1.0, 1.0]));
+    }
+    let [red, green, blue] = ink.map(|channel| f32::from(channel) / 255.0);
+    Some(Rgba([red, green, blue, 1.0]))
 }
 
 /// The box that, turned by `tilt` degrees clockwise about its centre, `bbox`

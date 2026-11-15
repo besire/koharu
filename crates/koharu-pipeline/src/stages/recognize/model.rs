@@ -44,12 +44,50 @@ impl Recognize for MangaOcrAr {
 
 impl Recognize for BaberuOcr {
     fn inference(&self, images: &[DynamicImage]) -> anyhow::Result<Vec<String>> {
-        BaberuOcr::inference(self, images)
+        BaberuOcr::inference(self, images).map(|texts| {
+            texts
+                .into_iter()
+                .map(|text| normalize_ellipsis(&text))
+                .collect()
+        })
     }
 
     fn language(&self) -> &'static str {
         "ja"
     }
+}
+
+/// Baberu reads a manga ellipsis as a full-width colon (`あ：あなた？`) or as a
+/// run of full-width periods, which translators then misread as colons. Only
+/// Baberu's output goes through this; between two digits (`12：00`, `3．5`)
+/// the punctuation is kept.
+fn normalize_ellipsis(text: &str) -> String {
+    let characters: Vec<char> = text.chars().collect();
+    let is_digit = |index: Option<usize>| {
+        index
+            .and_then(|index| characters.get(index))
+            .is_some_and(|character| character.is_ascii_digit() || matches!(character, '０'..='９'))
+    };
+    let mut normalized = String::with_capacity(text.len());
+    let mut start = 0;
+    while start < characters.len() {
+        if !matches!(characters[start], '：' | '．') {
+            normalized.push(characters[start]);
+            start += 1;
+            continue;
+        }
+        let end = characters[start..]
+            .iter()
+            .position(|character| !matches!(character, '：' | '．'))
+            .map_or(characters.len(), |length| start + length);
+        if is_digit(start.checked_sub(1)) && is_digit(Some(end)) {
+            normalized.extend(&characters[start..end]);
+        } else {
+            normalized.push('…');
+        }
+        start = end;
+    }
+    normalized
 }
 
 impl Recognize for HayaiOcr {
@@ -68,4 +106,20 @@ pub(super) async fn load(model: Recognizer, device: &'static Device) -> anyhow::
         Recognizer::BaberuOcr => Box::new(BaberuOcr::load(device).await?),
         Recognizer::HayaiOcr => Box::new(HayaiOcr::load(device).await?),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_ellipsis;
+
+    #[test]
+    fn baberu_full_width_colons_and_periods_normalize_to_ellipsis() {
+        assert_eq!(normalize_ellipsis("あ：あなた？"), "あ…あなた？");
+        assert_eq!(normalize_ellipsis("そんな．．．"), "そんな…");
+        assert_eq!(normalize_ellipsis("：：待って"), "…待って");
+        assert_eq!(normalize_ellipsis("12：00"), "12：00");
+        assert_eq!(normalize_ellipsis("３．５倍"), "３．５倍");
+        assert_eq!(normalize_ellipsis("时间：12：00"), "时间…12：00");
+        assert_eq!(normalize_ellipsis("12："), "12…");
+    }
 }

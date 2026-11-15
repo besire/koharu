@@ -55,143 +55,169 @@ impl Lettering {
     /// The lettering's typography on `page`, or `None` when its block holds
     /// no ink.
     pub fn typography(&self, page: &RgbImage) -> Option<Typography> {
-        let block = block(&self.mask, page.width(), page.height());
-        let (crop, ink, [left, top]) = ink(&block, page, 0, None)?;
-        let (width, height) = (block.width, block.height);
-        let inside = |x: u32, y: u32| block.pixels[(y * width + x) as usize] != 0;
-
-        // The block's edges are the sides and ends of its lines, and their
-        // commonest direction, modulo 90°, is the lines' tilt. The edges'
-        // gradients are averaged at four times their angle, which folds sides
-        // and ends onto one direction. Leptonica's skew finder, scoring the
-        // ink's profiles, flipped direction on 14% of blocks turned by up to
-        // 20° and followed only 82% of the turn; the block's hull, by its
-        // minimum-area rectangle or narrowest side, tilted wherever columns
-        // of uneven length step. Only the block's body counts, the parts at
-        // least a tenth the size of its largest: a stray fragment of a
-        // neighbour's mask is no line.
-        let shape = GrayImage::from_raw(width, height, block.pixels.clone())
-            .expect("a mask holds a byte a pixel");
-        let parts = connected_components(&shape, Connectivity::Eight, Luma([0]));
-        let mut sizes = HashMap::<u32, u32>::new();
-        for part in parts.pixels().filter(|part| part.0[0] != 0) {
-            *sizes.entry(part.0[0]).or_default() += 1;
-        }
-        let largest = sizes.values().copied().max().unwrap_or(0);
-        let body = |part: u32| part != 0 && 10 * sizes[&part] >= largest;
-        // A border, so the edges at the crop's sides have gradients too.
-        let border = 4;
-        let body_image = GrayImage::from_fn(width + 2 * border, height + 2 * border, |x, y| {
-            let inside = (border..border + width).contains(&x)
-                && (border..border + height).contains(&y)
-                && body(parts.get_pixel(x - border, y - border).0[0]);
-            Luma([if inside { 255 } else { 0 }])
-        });
-        let smooth = gaussian_blur_f32(&body_image, 1.5);
-        let (across, down) = (horizontal_sobel(&smooth), vertical_sobel(&smooth));
-        let (mut cosine, mut sine) = (0.0f64, 0.0f64);
-        for (gx, gy) in across.pixels().zip(down.pixels()) {
-            let (gx, gy) = (f64::from(gx.0[0]), f64::from(gy.0[0]));
-            let strength = gx.hypot(gy);
-            if strength > 0.0 {
-                let angle = 4.0 * gy.atan2(gx);
-                cosine += strength * angle.cos();
-                sine += strength * angle.sin();
-            }
-        }
-        let angle = (sine.atan2(cosine) / 4.0).to_degrees() as f32;
-
-        // The lines run along the body's longer extent at that angle.
-        let (sin, cos) = angle.to_radians().sin_cos();
-        let (mut along_x, mut along_y) = ((f32::MAX, f32::MIN), (f32::MAX, f32::MIN));
-        for (x, y, part) in parts.enumerate_pixels() {
-            if body(part.0[0]) {
-                let (x, y) = (x as f32, y as f32);
-                let (u, v) = (x * cos + y * sin, y * cos - x * sin);
-                along_x = (along_x.0.min(u), along_x.1.max(u));
-                along_y = (along_y.0.min(v), along_y.1.max(v));
-            }
-        }
-        let (extent_x, extent_y) = (along_x.1 - along_x.0 + 1.0, along_y.1 - along_y.0 + 1.0);
-        let vertical = if (extent_x - extent_y).abs() < 1.0 {
-            height > width
-        } else {
-            extent_y > extent_x
-        };
-        let stroke_width = find_stroke_width(&ink, 0.15);
-        let length = extent_x.max(extent_y);
-        let resolution = (stroke_width.unwrap_or(1.0) / length).atan().to_degrees();
-        let tilt = if angle.abs() < resolution { 0.0 } else { angle };
-
-        let (sin, cos) = tilt.to_radians().sin_cos();
-        let across: Vec<f32> = ink
-            .enumerate_pixels()
-            .filter(|(_, _, pixel)| pixel.0[0] != 0)
-            .map(|(x, y, _)| {
-                let (x, y) = (x as f32, y as f32);
-                match vertical {
-                    true => x * cos + y * sin,
-                    false => y * cos - x * sin,
-                }
-            })
-            .collect();
-        let low = across.iter().copied().fold(f32::MAX, f32::min);
-        let mut profile = Vec::<u32>::new();
-        for position in &across {
-            let bin = (position - low) as usize;
-            if profile.len() <= bin {
-                profile.resize(bin + 1, 0);
-            }
-            profile[bin] += 1;
-        }
-        // Close lines' anti-aliased edges can meet, so a gap is where the
-        // profile falls below an eighth of its peak.
-        let gap = profile.iter().copied().max().unwrap_or(0) / 8;
-        let mut runs: Vec<(usize, u32)> = profile
-            .split(|count| *count <= gap)
-            .filter(|run| !run.is_empty())
-            .map(|run| (run.len(), run.iter().sum()))
-            .collect();
-        runs.sort_unstable();
-        let total: u32 = runs.iter().map(|(_, ink)| ink).sum();
-        let mut seen = 0;
-        let size = runs
-            .iter()
-            .find(|(_, ink)| {
-                seen += ink;
-                2 * seen >= total
-            })
-            .map(|(length, _)| *length)
-            .expect("the profile's peak is a run") as f32;
-
-        let (ink_color, paper_color) = match color_segment(&crop, 60, 8, 1, 4) {
-            Ok(Some(segments)) => {
-                let commonest = |wanted: bool| {
-                    let mut counts = vec![0u32; segments.colors.len()];
-                    for (x, y, index) in segments.indices.enumerate_pixels() {
-                        if inside(x, y) && (ink.get_pixel(x, y).0[0] != 0) == wanted {
-                            counts[usize::from(index.0[0])] += 1;
-                        }
-                    }
-                    let (index, &count) =
-                        counts.iter().enumerate().max_by_key(|&(_, count)| count)?;
-                    (count > 0).then(|| segments.colors[index])
-                };
-                (commonest(true), commonest(false))
-            }
-            _ => (None, None),
-        };
-
-        Some(Typography {
-            vertical,
-            tilt,
-            size,
-            stroke_width,
-            ink: ink_color,
-            paper: paper_color,
-            outline: outline(page, &ink, [left, top], size, ink_color),
-        })
+        typography_of(&self.mask, page)
     }
+}
+
+pub(super) fn typography_of(mask: &Mask, page: &RgbImage) -> Option<Typography> {
+    let block = block(mask, page.width(), page.height());
+    let (crop, ink, [left, top]) = ink(&block, page, 0, None)?;
+    let (width, height) = (block.width, block.height);
+    let inside = |x: u32, y: u32| block.pixels[(y * width + x) as usize] != 0;
+
+    // The block's edges are the sides and ends of its lines, and their
+    // commonest direction, modulo 90°, is the lines' tilt. The edges'
+    // gradients are averaged at four times their angle, which folds sides
+    // and ends onto one direction. Leptonica's skew finder, scoring the
+    // ink's profiles, flipped direction on 14% of blocks turned by up to
+    // 20° and followed only 82% of the turn; the block's hull, by its
+    // minimum-area rectangle or narrowest side, tilted wherever columns
+    // of uneven length step. Only the block's body counts, the parts at
+    // least a tenth the size of its largest: a stray fragment of a
+    // neighbour's mask is no line.
+    let shape = GrayImage::from_raw(width, height, block.pixels.clone())
+        .expect("a mask holds a byte a pixel");
+    let parts = connected_components(&shape, Connectivity::Eight, Luma([0]));
+    let mut sizes = HashMap::<u32, u32>::new();
+    for part in parts.pixels().filter(|part| part.0[0] != 0) {
+        *sizes.entry(part.0[0]).or_default() += 1;
+    }
+    let largest = sizes.values().copied().max().unwrap_or(0);
+    let body = |part: u32| part != 0 && 10 * sizes[&part] >= largest;
+    // A border, so the edges at the crop's sides have gradients too.
+    let border = 4;
+    let body_image = GrayImage::from_fn(width + 2 * border, height + 2 * border, |x, y| {
+        let inside = (border..border + width).contains(&x)
+            && (border..border + height).contains(&y)
+            && body(parts.get_pixel(x - border, y - border).0[0]);
+        Luma([if inside { 255 } else { 0 }])
+    });
+    let smooth = gaussian_blur_f32(&body_image, 1.5);
+    let (across, down) = (horizontal_sobel(&smooth), vertical_sobel(&smooth));
+    let (mut cosine, mut sine) = (0.0f64, 0.0f64);
+    for (gx, gy) in across.pixels().zip(down.pixels()) {
+        let (gx, gy) = (f64::from(gx.0[0]), f64::from(gy.0[0]));
+        let strength = gx.hypot(gy);
+        if strength > 0.0 {
+            let angle = 4.0 * gy.atan2(gx);
+            cosine += strength * angle.cos();
+            sine += strength * angle.sin();
+        }
+    }
+    let angle = (sine.atan2(cosine) / 4.0).to_degrees() as f32;
+
+    // The lines run along the body's longer extent at that angle.
+    let (sin, cos) = angle.to_radians().sin_cos();
+    let (mut along_x, mut along_y) = ((f32::MAX, f32::MIN), (f32::MAX, f32::MIN));
+    for (x, y, part) in parts.enumerate_pixels() {
+        if body(part.0[0]) {
+            let (x, y) = (x as f32, y as f32);
+            let (u, v) = (x * cos + y * sin, y * cos - x * sin);
+            along_x = (along_x.0.min(u), along_x.1.max(u));
+            along_y = (along_y.0.min(v), along_y.1.max(v));
+        }
+    }
+    let (extent_x, extent_y) = (along_x.1 - along_x.0 + 1.0, along_y.1 - along_y.0 + 1.0);
+    let vertical = if (extent_x - extent_y).abs() < 1.0 {
+        height > width
+    } else {
+        extent_y > extent_x
+    };
+    let stroke_width = find_stroke_width(&ink, 0.15);
+    let length = extent_x.max(extent_y);
+    let resolution = (stroke_width.unwrap_or(1.0) / length).atan().to_degrees();
+    let tilt = if angle.abs() < resolution { 0.0 } else { angle };
+
+    let (sin, cos) = tilt.to_radians().sin_cos();
+    let across: Vec<f32> = ink
+        .enumerate_pixels()
+        .filter(|(_, _, pixel)| pixel.0[0] != 0)
+        .map(|(x, y, _)| {
+            let (x, y) = (x as f32, y as f32);
+            match vertical {
+                true => x * cos + y * sin,
+                false => y * cos - x * sin,
+            }
+        })
+        .collect();
+    let low = across.iter().copied().fold(f32::MAX, f32::min);
+    let mut profile = Vec::<u32>::new();
+    for position in &across {
+        let bin = (position - low) as usize;
+        if profile.len() <= bin {
+            profile.resize(bin + 1, 0);
+        }
+        profile[bin] += 1;
+    }
+    // Close lines' anti-aliased edges can meet, so a gap is where the
+    // profile falls below an eighth of its peak.
+    let gap = profile.iter().copied().max().unwrap_or(0) / 8;
+    let mut runs: Vec<(usize, u32)> = profile
+        .split(|count| *count <= gap)
+        .filter(|run| !run.is_empty())
+        .map(|run| (run.len(), run.iter().sum()))
+        .collect();
+    runs.sort_unstable();
+    let total: u32 = runs.iter().map(|(_, ink)| ink).sum();
+    let mut seen = 0;
+    let size = runs
+        .iter()
+        .find(|(_, ink)| {
+            seen += ink;
+            2 * seen >= total
+        })
+        .map(|(length, _)| *length)
+        .expect("the profile's peak is a run") as f32;
+
+    let (mut ink_color, mut paper_color) = match color_segment(&crop, 60, 8, 1, 4) {
+        Ok(Some(segments)) => {
+            let commonest = |wanted: bool| {
+                let mut counts = vec![0u32; segments.colors.len()];
+                for (x, y, index) in segments.indices.enumerate_pixels() {
+                    if inside(x, y) && (ink.get_pixel(x, y).0[0] != 0) == wanted {
+                        counts[usize::from(index.0[0])] += 1;
+                    }
+                }
+                let (index, &count) = counts.iter().enumerate().max_by_key(|&(_, count)| count)?;
+                (count > 0).then(|| segments.colors[index])
+            };
+            (commonest(true), commonest(false))
+        }
+        _ => (None, None),
+    };
+
+    let mut found_outline = outline(page, &ink, [left, top], size, ink_color);
+    // Over mid-tone art, Otsu's two-way split can put a bright outline on one
+    // side and both the darker glyphs and the art on the other, so `ink` holds
+    // the outline band instead of the glyphs it encloses.
+    if found_outline.is_none()
+        && let Some(inner_color) = paper_color
+    {
+        let inner = GrayImage::from_fn(width, height, |x, y| {
+            let pixel = crop.get_pixel(x, y).0;
+            let matches = inside(x, y)
+                && ink.get_pixel(x, y).0[0] == 0
+                && (0..3).all(|at| pixel[at].abs_diff(inner_color[at]) <= OUTLINE_TOLERANCE);
+            Luma([if matches { 255 } else { 0 }])
+        });
+        if inner.pixels().filter(|pixel| pixel.0[0] != 0).count() >= 16
+            && let Some(enclosed) = outline(page, &inner, [left, top], size, Some(inner_color))
+        {
+            paper_color = ink_color;
+            ink_color = Some(inner_color);
+            found_outline = Some(enclosed);
+        }
+    }
+
+    Some(Typography {
+        vertical,
+        tilt,
+        size,
+        stroke_width,
+        ink: ink_color,
+        paper: paper_color,
+        outline: found_outline,
+    })
 }
 
 /// How far from the band's median colour, in every channel, an outline's
