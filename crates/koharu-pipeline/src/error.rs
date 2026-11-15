@@ -1,5 +1,7 @@
 use std::{error::Error as StdError, fmt};
 
+use koharu_scene::EntityId;
+
 use crate::Stage;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -14,6 +16,8 @@ pub enum ErrorKind {
 #[derive(Debug)]
 pub struct PipelineError {
     pub stage: Option<Stage>,
+    pub page: Option<EntityId>,
+    pub failed_pages: Vec<EntityId>,
     pub kind: ErrorKind,
     source: anyhow::Error,
 }
@@ -26,9 +30,21 @@ impl PipelineError {
     ) -> Self {
         Self {
             stage,
+            page: None,
+            failed_pages: Vec::new(),
             kind,
             source: source.into(),
         }
+    }
+
+    pub(crate) fn with_page(mut self, page: EntityId) -> Self {
+        self.page = Some(page);
+        self
+    }
+
+    pub(crate) fn with_failed_pages(mut self, pages: impl IntoIterator<Item = EntityId>) -> Self {
+        self.failed_pages = pages.into_iter().collect();
+        self
     }
 }
 

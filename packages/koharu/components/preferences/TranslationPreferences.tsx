@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, Trash2 } from 'lucide-react'
+import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -63,8 +63,31 @@ export function TranslationPreferences({
   const languageChoices = useMemo(() => orderedLanguageChoices(languages), [languages])
   const [presetName, setPresetName] = useState('')
   const [selectedPreset, setSelectedPreset] = useState('')
+  const [glossarySource, setGlossarySource] = useState('')
+  const [glossaryTarget, setGlossaryTarget] = useState('')
   const presets = value.instruction_presets ?? []
+  const glossary = value.glossary ?? []
   const selectedExists = presets.some((preset) => preset.name === selectedPreset)
+
+  const addGlossaryEntry = () => {
+    const source = glossarySource.trim()
+    const target = glossaryTarget.trim()
+    if (!source || !target) return
+    const next = [...glossary]
+    const index = next.findIndex((entry) => entry.source === source)
+    if (index >= 0) next[index] = { source, target }
+    else next.push({ source, target })
+    setGlossarySource('')
+    setGlossaryTarget('')
+    onChange({ ...value, glossary: next })
+  }
+
+  const removeGlossaryEntry = (source: string) => {
+    onChange({
+      ...value,
+      glossary: glossary.filter((entry) => entry.source !== source),
+    })
+  }
 
   const savePreset = () => {
     const name = presetName.trim()
@@ -261,6 +284,73 @@ export function TranslationPreferences({
                 <Trash2 className='size-3.5' />
               </Button>
             </div>
+          </div>
+        </PreferenceRow>
+        <PreferenceRow
+          title={t('settings.translation.glossary')}
+          description={t('settings.translation.glossaryDescription')}
+          align='start'
+        >
+          <div className='grid gap-2'>
+            <div className='flex gap-2'>
+              <Input
+                value={glossarySource}
+                aria-label={t('settings.translation.glossarySource')}
+                placeholder={t('settings.translation.glossarySourcePlaceholder')}
+                className='h-8 min-w-0 flex-1 text-[12px]'
+                onChange={(event) => setGlossarySource(event.currentTarget.value)}
+              />
+              <Input
+                value={glossaryTarget}
+                aria-label={t('settings.translation.glossaryTarget')}
+                placeholder={t('settings.translation.glossaryTargetPlaceholder')}
+                className='h-8 min-w-0 flex-1 text-[12px]'
+                onChange={(event) => setGlossaryTarget(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    addGlossaryEntry()
+                  }
+                }}
+              />
+              <Button
+                type='button'
+                variant='outline'
+                size='icon-sm'
+                aria-label={t('settings.translation.addGlossaryEntry')}
+                title={t('settings.translation.addGlossaryEntry')}
+                disabled={!glossarySource.trim() || !glossaryTarget.trim()}
+                onClick={addGlossaryEntry}
+              >
+                <Plus className='size-3.5' />
+              </Button>
+            </div>
+            {glossary.length > 0 && (
+              <ul className='divide-y divide-border/60 rounded-lg border border-border/60'>
+                {glossary.map((entry) => (
+                  <li
+                    key={entry.source}
+                    className='flex min-w-0 items-center gap-2 px-2.5 py-1.5 text-[11px]'
+                  >
+                    <span className='min-w-0 flex-1 truncate font-medium'>{entry.source}</span>
+                    <span className='shrink-0 text-muted-foreground'>→</span>
+                    <span className='min-w-0 flex-1 truncate'>{entry.target}</span>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon-xs'
+                      aria-label={t('settings.translation.removeGlossaryEntry', {
+                        source: entry.source,
+                      })}
+                      className='shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+                      onClick={() => removeGlossaryEntry(entry.source)}
+                    >
+                      <Trash2 className='size-3' />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </PreferenceRow>
       </PreferenceSection>

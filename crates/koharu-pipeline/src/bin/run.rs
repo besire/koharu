@@ -75,6 +75,8 @@ enum OcrChoice {
     BaberuOcr,
     #[value(name = "hayai-ocr")]
     HayaiOcr,
+    #[value(name = "pp-ocr-v6")]
+    PpOcrV6,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -104,6 +106,7 @@ impl Arguments {
                 OcrChoice::MangaOcr => OcrModel::MangaOcr,
                 OcrChoice::BaberuOcr => OcrModel::BaberuOcr,
                 OcrChoice::HayaiOcr => OcrModel::HayaiOcr,
+                OcrChoice::PpOcrV6 => OcrModel::PpOcrV6,
             },
             translation: TranslationConfig {
                 model: ModelSelection {
@@ -117,6 +120,7 @@ impl Arguments {
                 target_language: self.target_language,
                 instructions: self.translation_instructions.clone(),
                 instruction_presets: Vec::new(),
+                glossary: Vec::new(),
             },
             inpainting: match self.inpainting {
                 InpaintingChoice::LaMa => InpaintingModel::LaMa {},

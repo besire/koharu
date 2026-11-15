@@ -64,6 +64,7 @@ impl Serialize for PipelineConfig {
             OcrModel::MangaOcr => "manga-ocr",
             OcrModel::BaberuOcr => "baberu-ocr",
             OcrModel::HayaiOcr => "hayai-ocr",
+            OcrModel::PpOcrV6 => "pp-ocr-v6",
         };
         let inpainting = match &self.inpainting {
             InpaintingModel::LaMa {} => "lama",
@@ -126,6 +127,7 @@ impl<'de> Deserialize<'de> for PipelineConfig {
             "manga-ocr" => OcrModel::MangaOcr,
             "baberu-ocr" => OcrModel::BaberuOcr,
             "hayai-ocr" => OcrModel::HayaiOcr,
+            "pp-ocr-v6" => OcrModel::PpOcrV6,
             model => {
                 return Err(serde::de::Error::custom(format!(
                     "unsupported OCR model {model}"
@@ -177,6 +179,12 @@ pub struct InstructionPreset {
     pub instructions: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct GlossaryEntry {
+    pub source: String,
+    pub target: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
 pub struct TranslationConfig {
     pub model: koharu_translator::ModelSelection,
@@ -186,6 +194,8 @@ pub struct TranslationConfig {
     pub instructions: Option<String>,
     #[serde(default)]
     pub instruction_presets: Vec<InstructionPreset>,
+    #[serde(default)]
+    pub glossary: Vec<GlossaryEntry>,
 }
 
 impl Default for TranslationConfig {
@@ -196,6 +206,7 @@ impl Default for TranslationConfig {
             target_language: Language::English,
             instructions: None,
             instruction_presets: Vec::new(),
+            glossary: Vec::new(),
         }
     }
 }
@@ -246,6 +257,7 @@ impl PipelineConfig {
                 | OcrModel::MangaOcr
                 | OcrModel::BaberuOcr
                 | OcrModel::HayaiOcr
+                | OcrModel::PpOcrV6
         ) {
             bail!("unsupported OCR model")
         }
@@ -282,6 +294,8 @@ pub enum OcrModel {
     BaberuOcr,
     #[serde(rename = "hayai-ocr")]
     HayaiOcr,
+    #[serde(rename = "pp-ocr-v6")]
+    PpOcrV6,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]

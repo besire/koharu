@@ -32,7 +32,10 @@ pub(crate) struct Execution<'a> {
     images: BTreeMap<EntityId, Arc<ImageCache>>,
     busy_stages: BTreeSet<Stage>,
     completed: usize,
-    failure: Option<PipelineError>,
+    failed_work: usize,
+    failed_pages: BTreeSet<EntityId>,
+    page_failure: Option<PipelineError>,
+    fatal_failure: Option<PipelineError>,
     base: koharu_scene::Revision,
     started: Instant,
     inpainting_mask: Option<crate::InpaintingMask>,
@@ -84,7 +87,10 @@ impl<'a> Execution<'a> {
             images: BTreeMap::new(),
             busy_stages: BTreeSet::new(),
             completed: 0,
-            failure: None,
+            failed_work: 0,
+            failed_pages: BTreeSet::new(),
+            page_failure: None,
+            fatal_failure: None,
             base,
             started,
             inpainting_mask: request.inpainting_mask,
@@ -110,11 +116,33 @@ impl<'a> Execution<'a> {
                 break;
             };
             self.busy_stages.remove(&completion.stage);
-            if self.stopped() || self.failure.is_some() {
+            if self.stopped() || self.fatal_failure.is_some() {
                 continue;
             }
+            let page = completion.page;
+            let stage = completion.stage;
             if let Err(error) = self.apply_completion(completion).await {
-                self.failure = Some(error);
+                let error = error.with_page(page);
+                if self.can_continue_after_page_error(&error) {
+                    tracing::warn!(
+                        %page,
+                        %stage,
+                        error = %error,
+                        "page stage failed; continuing remaining pages in batch"
+                    );
+                    self.failed_pages.insert(page);
+                    let (newly_failed, page_finished) = self.scheduler.fail_stage(page, stage);
+                    self.failed_work += newly_failed;
+                    if page_finished {
+                        self.images.remove(&page);
+                    }
+                    if self.page_failure.is_none() {
+                        self.page_failure = Some(error);
+                    }
+                } else {
+                    self.failed_pages.insert(page);
+                    self.fatal_failure = Some(error);
+                }
             }
         }
 
@@ -122,7 +150,7 @@ impl<'a> Execution<'a> {
     }
 
     fn take_ready_job(&mut self) -> Option<StageJob> {
-        if self.stopped() || self.failure.is_some() {
+        if self.stopped() || self.fatal_failure.is_some() {
             return None;
         }
         let (page, stage) = self.scheduler.start_next(&self.busy_stages)?;
@@ -227,11 +255,27 @@ impl<'a> Execution<'a> {
         self.stop.stopped()
     }
 
+    fn can_continue_after_page_error(&self, error: &PipelineError) -> bool {
+        self.scope.pages().len() > 1
+            && matches!(error.kind, ErrorKind::Processing | ErrorKind::InvalidOutput)
+            && !is_global_processing_failure(error)
+    }
+
     fn finalize(mut self) -> std::result::Result<Report, PipelineError> {
-        if let Some(error) = self.failure.take() {
-            return Err(error);
+        let ordered_failed_pages = self
+            .scope
+            .pages()
+            .iter()
+            .copied()
+            .filter(|page| self.failed_pages.contains(page))
+            .collect::<Vec<_>>();
+        if let Some(error) = self.fatal_failure.take() {
+            return Err(error.with_failed_pages(ordered_failed_pages));
         }
-        if !self.stopped() && self.completed != self.scheduler.total() {
+        if let Some(error) = self.page_failure.take() {
+            return Err(error.with_failed_pages(ordered_failed_pages));
+        }
+        if !self.stopped() && self.completed + self.failed_work != self.scheduler.total() {
             return Err(PipelineError::new(
                 ErrorKind::InvalidOutput,
                 None,
@@ -272,4 +316,13 @@ fn validate_commit(previous: &Snapshot, next: &Snapshot) -> Result<()> {
         "committer did not advance the scene revision"
     );
     Ok(())
+}
+
+fn is_global_processing_failure(error: &PipelineError) -> bool {
+    let details = format!("{error:#}").to_ascii_lowercase();
+    details.contains("quota or rate limit was exceeded")
+        || details.contains("api key is not configured")
+        || details.contains("does not support target language")
+        || details.contains("does not support source language")
+        || details.contains("requires a selected model")
 }

@@ -13,8 +13,9 @@ use koharu_scene::{
     Geometry as SceneGeometry, Group as SceneGroup, Origin, PageDraft, Point as ScenePoint,
     Presents, RasterLayer as SceneRasterLayer, RasterLayerKind, Region as SceneRegion,
     RemovePolicy, Revision, Session, Snapshot, SourceText as SceneSourceText,
-    TextGroup as SceneTextGroup, TextLayout as SceneTextLayout, TextLayoutKind,
-    Translation as SceneTranslation, Typography as SceneTypography, Visibility as SceneVisibility,
+    TextContent as SceneTextContent, TextGroup as SceneTextGroup, TextLayout as SceneTextLayout,
+    TextLayoutKind, Translation as SceneTranslation, Typography as SceneTypography,
+    Visibility as SceneVisibility,
 };
 use serde::Serialize;
 use specta::Type;
@@ -126,6 +127,8 @@ pub struct TextContent {
     pub id: EntityId,
     pub source: Option<SourceText>,
     pub translation: Option<Translation>,
+    #[serde(default)]
+    pub note: Option<String>,
     pub role: Option<String>,
     pub source_region: Option<EntityId>,
 }
@@ -174,6 +177,10 @@ pub struct Typography {
     pub stroke_width: Option<f32>,
     pub alignment: Option<koharu_scene::TextAlignment>,
     pub writing_mode: Option<koharu_scene::WritingMode>,
+    #[serde(default)]
+    pub line_height: Option<f32>,
+    #[serde(default)]
+    pub letter_spacing: Option<f32>,
 }
 
 pub(crate) struct CurrentProject {
@@ -466,6 +473,8 @@ impl Project {
                         TextLayoutKind::Paragraph => None,
                     },
                     writing_mode: None,
+                    line_height: None,
+                    letter_spacing: None,
                     extensions: Default::default(),
                 },
             )?;
@@ -528,6 +537,31 @@ impl Project {
         self.commit(patch).await
     }
 
+    pub(crate) async fn set_translation_note(
+        &mut self,
+        layer: EntityId,
+        note: Option<String>,
+    ) -> Result<Commit> {
+        let snapshot = self.snapshot();
+        let content = Self::text_content(&snapshot, layer)?;
+        let normalized = note.and_then(|value| {
+            let trimmed = value.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_owned())
+        });
+        let patch = snapshot.patch(|edit| {
+            edit.promote_entity_to_user(layer)?;
+            edit.promote_entity_to_user(content)?;
+            edit.set(
+                content,
+                &SceneTextContent {
+                    origin: Origin::User,
+                    note: normalized,
+                },
+            )
+        })?;
+        self.commit(patch).await
+    }
+
     pub(crate) async fn set_typography(
         &mut self,
         updates: Vec<TypographyUpdate>,
@@ -537,11 +571,15 @@ impl Project {
             .into_iter()
             .map(|update| {
                 let content = Self::text_content(&snapshot, update.layer)?;
-                Ok((update, content))
+                let extensions = snapshot
+                    .component::<SceneTypography>(update.layer)?
+                    .map(|typography| typography.extensions)
+                    .unwrap_or_default();
+                Ok((update, content, extensions))
             })
             .collect::<Result<Vec<_>>>()?;
         let patch = snapshot.patch(|edit| {
-            for (update, content) in updates {
+            for (update, content, extensions) in updates {
                 edit.promote_entity_to_user(update.layer)?;
                 edit.promote_entity_to_user(content)?;
                 edit.set(
@@ -558,7 +596,15 @@ impl Project {
                         stroke_width: update.typography.stroke_width,
                         alignment: update.typography.alignment,
                         writing_mode: update.typography.writing_mode,
-                        extensions: Default::default(),
+                        line_height: update
+                            .typography
+                            .line_height
+                            .filter(|ratio| (0.5..=5.0).contains(ratio)),
+                        letter_spacing: update
+                            .typography
+                            .letter_spacing
+                            .filter(|spacing| (-0.5..=2.0).contains(spacing)),
+                        extensions,
                     },
                 )?;
             }
@@ -1017,6 +1063,7 @@ impl Project {
                 text: translation.text.value,
                 language: translation.language.map(|language| language.to_string()),
             });
+            let note = content.note()?;
             let role = content.role()?.map(|role| role.role);
             let source_region = content.source_region()?.map(|region| region.id());
             let automatic_region = text_layer.automatic_target()?.map(|region| region.id());
@@ -1033,6 +1080,7 @@ impl Project {
                     id: content.id(),
                     source,
                     translation,
+                    note,
                     role,
                     source_region,
                 }),
@@ -1114,6 +1162,8 @@ impl Project {
             stroke_width: typography.stroke_width,
             alignment: typography.alignment,
             writing_mode,
+            line_height: typography.line_height,
+            letter_spacing: typography.letter_spacing,
         }
     }
 
@@ -1474,6 +1524,8 @@ mod tests {
             stroke_width: None,
             alignment: None,
             writing_mode: Some(WritingMode::Vertical),
+            line_height: None,
+            letter_spacing: None,
             extensions: Default::default(),
         };
 

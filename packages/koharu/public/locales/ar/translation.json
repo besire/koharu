@@ -11,10 +11,14 @@
     "downloadingFiles": "جارٍ تنزيل {{count}} من الملفات",
     "downloadingFiles_one": "جارٍ تنزيل {{count}} ملف",
     "downloadingFiles_other": "جارٍ تنزيل {{count}} من الملفات",
+    "failedPagesCount": "فشلت {{count}} صفحات",
+    "failedPagesCount_one": "فشلت {{count}} صفحة",
+    "failedPagesCount_other": "فشلت {{count}} صفحات",
     "modelDownload": "تنزيل النموذج",
     "pageLabel": "الصفحة {{number}}: {{label}}",
     "processing": "قيد المعالجة",
     "processingFailed": "فشلت المعالجة.",
+    "retryFailedPages": "إعادة محاولة الصفحات الفاشلة",
     "stop": "إيقاف",
     "title": "النشاط"
   },
@@ -62,10 +66,10 @@
   "colorPicker": {
     "brushColor": "لون الفرشاة",
     "hexCode": "رمز اللون الست عشري",
-    "sampleCanvas": "اختيار لون من اللوحة",
-    "transparent": "شفاف",
     "recent": "الألوان الأخيرة",
-    "recentColor": "اللون الأخير {{color}}"
+    "recentColor": "اللون الأخير {{color}}",
+    "sampleCanvas": "اختيار لون من اللوحة",
+    "transparent": "شفاف"
   },
   "common": {
     "back": "رجوع",
@@ -88,6 +92,8 @@
     "allStyles": "كل الأنماط",
     "choose": "اختر خطًا",
     "clearFilters": "مسح المرشّحات",
+    "favoriteFont": "تفضيل {{family}}",
+    "favoritesOnly": "الخطوط المفضلة فقط",
     "filter": "تصفية الخطوط",
     "filterActiveLabel": "تصفية الخطوط، {{count}} نشطة",
     "fontCount": "{{count}} خط",
@@ -123,7 +129,8 @@
       "bundled": "مضمّن",
       "system": "النظام"
     },
-    "style": "النمط"
+    "style": "النمط",
+    "unfavoriteFont": "إزالة {{family}} من المفضلة"
   },
   "inference": {
     "currentPage": "الصفحة الحالية",
@@ -175,6 +182,8 @@
     "color": "اللون",
     "customFrame": "إطار مخصّص",
     "decreaseBorderWidth": "تقليل عرض الحدود",
+    "decreaseLetterSpacing": "تقليل التباعد بين الأحرف",
+    "decreaseLineHeight": "تقليل ارتفاع السطر",
     "direction": "الاتجاه",
     "font": "الخط",
     "fontSize": "حجم الخط",
@@ -187,6 +196,10 @@
     "fontWeight": "وزن الخط",
     "horizontal": "أفقي",
     "increaseBorderWidth": "زيادة عرض الحدود",
+    "increaseLetterSpacing": "زيادة التباعد بين الأحرف",
+    "increaseLineHeight": "زيادة ارتفاع السطر",
+    "letterSpacing": "تباعد الأحرف",
+    "lineHeight": "ارتفاع السطر",
     "opacity": "العتامة",
     "placement": "الموضع",
     "resetAutoFit": "إعادة إلى الملاءمة التلقائية",
@@ -197,6 +210,8 @@
     "textColor": "لون النص",
     "textDirection": "اتجاه النص",
     "translation": "الترجمة",
+    "translationNote": "ملاحظة الترجمة",
+    "translationNotePlaceholder": "المتحدث أو النبرة أو السياق لهذا السطر",
     "type": "النوع",
     "unplaced": "غير موضوع",
     "vertical": "عمودي",
@@ -218,6 +233,8 @@
     "zh-TW": "繁體中文"
   },
   "layers": {
+    "copySource": "نسخ النص الأصلي لـ {{name}}",
+    "copyTranslation": "نسخ الترجمة لـ {{name}}",
     "delete": "حذف {{name}}",
     "edit": "تعديل {{name}}",
     "empty": "لا توجد طبقات في هذه الصفحة.",
@@ -237,16 +254,21 @@
     "lockedLabel": "{{name}} مقفل",
     "moveDown": "نقل {{name}} لأسفل",
     "moveUp": "نقل {{name}} لأعلى",
+    "ocr": "تشغيل التعرف الضوئي لـ {{name}}",
+    "ocrBlocked": "لم يتم تشغيل التعرف الضوئي",
+    "ocrRequiresEmptySource": "امسح النص الأصلي قبل تشغيل التعرف الضوئي.",
     "opacityLabel": "عتامة {{name}}",
     "originalArtwork": "الرسم الأصلي",
     "show": "إظهار {{name}}",
     "sourceLabel": "النص المصدر لـ {{name}}",
     "textName": "نص {{index}}",
     "title": "الطبقات",
+    "translate": "ترجمة {{name}}",
+    "translateAction": "ترجمة",
+    "translateBlocked": "لم يتم تشغيل الترجمة",
+    "translateRequiresSource": "أدخل النص الأصلي أو شغّل OCR قبل الترجمة.",
     "translationLabel": "ترجمة {{name}}",
-    "ocr": "تشغيل التعرف الضوئي لـ {{name}}",
-    "ocrBlocked": "لم يتم تشغيل التعرف الضوئي",
-    "ocrRequiresEmptySource": "امسح النص الأصلي قبل تشغيل التعرف الضوئي."
+    "translationNoteLabel": "ملاحظة ترجمة {{name}}"
   },
   "menu": {
     "about": "عن البرنامج",
@@ -311,9 +333,9 @@
   "outputPicker": {
     "instructions": "تعليمات الترجمة",
     "instructionsPlaceholder": "إرشادات اختيارية للنبرة والأسماء والتنسيق.",
+    "loadPreset": "تحميل إعداد مسبق",
     "targetLanguage": "اللغة المستهدفة",
-    "title": "مخرجات الترجمة",
-    "loadPreset": "تحميل إعداد مسبق"
+    "title": "مخرجات الترجمة"
   },
   "phase": {
     "detection": "الكشف",
@@ -375,12 +397,12 @@
       "maxTokens": "Maximum tokens",
       "minP": "Min P",
       "presencePenalty": "Presence penalty",
+      "reasoning": "التفكير",
+      "reasoningDescription": "استخدام تفكير النموذج أثناء الترجمة.",
       "repeatPenalty": "Repeat penalty",
       "sampling": "أخذ العينات",
       "samplingDescription": "تحكّم في كيفية اختيار النموذج للنص المولّد وتنويعه.",
       "temperature": "Temperature",
-      "reasoning": "التفكير",
-      "reasoningDescription": "استخدام تفكير النموذج أثناء الترجمة.",
       "title": "التوليد",
       "topK": "Top K",
       "topP": "Top P",
@@ -393,7 +415,12 @@
       "modelLabel": "نموذج {{stage}}",
       "options": {
         "bubbleThreshold": "عتبة الفقاعات",
+        "detectFontStyle": "مطابقة نمط الخط المذيّل الأصلي",
+        "detectFontStyleDescription": "يكتشف ما إذا كان النص الأصلي مذيّلاً أم غير مذيّل أثناء تحليل التخطيط.",
+        "includeOnomatopoeia": "تضمين المؤثرات الصوتية (SFX)",
+        "includeOnomatopoeiaDescription": "ينشئ طبقات نص وأقنعة ترميم للمحاكاة الصوتية.",
         "negativePrompt": "الطلب السلبي",
+        "onomatopoeiaThreshold": "عتبة المؤثرات الصوتية",
         "panelThreshold": "عتبة الألواح",
         "prompt": "الطلب",
         "textThreshold": "عتبة النص"
@@ -424,13 +451,13 @@
       "credentialLabel": "API key لـ {{provider}}",
       "description": "اربط مزوّدي الترجمة والنماذج اللغوية.",
       "notConfigured": "غير مهيّأ",
-      "title": "المزوّدون",
       "structuredOutput": "الإخراج المهيكل",
       "structuredOutputModes": {
-        "json_schema": "مخطط JSON",
+        "disabled": "معطل",
         "json_object": "كائن JSON",
-        "disabled": "معطل"
-      }
+        "json_schema": "مخطط JSON"
+      },
+      "title": "المزوّدون"
     },
     "shortcuts": {
       "description": "تتوفّر اختصارات المفتاح الواحد عندما لا يكون حقل النص قيد التركيز.",
@@ -448,31 +475,40 @@
     },
     "title": "الإعدادات",
     "translation": {
+      "addGlossaryEntry": "إضافة مصطلح إلى المسرد",
+      "deletePreset": "حذف الإعداد المسبق",
       "description": "اختر أي نموذج مزوّد مهيّأ، ثم طبّق مجموعة موحّدة من خيارات الترجمة والتوليد.",
+      "glossary": "المسرد",
+      "glossaryDescription": "ثبّت أسماء الشخصيات والمصطلحات المتكررة عبر جميع الصفحات.",
+      "glossarySource": "المصطلح الأصلي",
+      "glossarySourcePlaceholder": "المصطلح في النص الأصلي",
+      "glossaryTarget": "المصطلح المترجم",
+      "glossaryTargetPlaceholder": "الترجمة المفضلة",
       "instructionsDescription": "إرشادات الأسماء أو النبرة أو المصطلحات أو التنسيق.",
       "instructionsLabel": "تعليمات الترجمة",
       "instructionsPlaceholder": "إرشادات اختيارية على مستوى المشروع",
       "model": "النموذج",
       "modelDescription": "تشير تسميات المزوّد إلى مكان تشغيل كل نموذج؛ وتُهيَّأ الاتصالات بشكل منفصل.",
       "modelQuantization": "تكميم النموذج",
+      "noPresets": "لا توجد إعدادات مسبقة محفوظة",
       "output": "الإخراج",
+      "presetName": "اسم الإعداد المسبق",
+      "presetNamePlaceholder": "اسم للتعليمات الحالية",
+      "presetsDescription": "احفظ التعليمات الحالية باسم لتحميلها لاحقًا.",
       "quantization": "التكميم",
       "quantizationDescription": "تستخدم الصيغ الأصغر ذاكرة أقل، مع مقايضة في الجودة عادةً.",
+      "removeGlossaryEntry": "إزالة {{source}}",
+      "savePreset": "حفظ",
+      "savedPresets": "الإعدادات المسبقة المحفوظة",
       "selectQuantization": "اختر تكميمًا",
       "targetLanguageDescription": "اختر اللغة التي تُترجم إليها النصوص.",
       "title": "الترجمة",
       "translationModel": "نموذج الترجمة",
-      "translationModelDescription": "اختر النموذج المستخدم لترجمة النصوص.",
-      "deletePreset": "حذف الإعداد المسبق",
-      "noPresets": "لا توجد إعدادات مسبقة محفوظة",
-      "presetName": "اسم الإعداد المسبق",
-      "presetNamePlaceholder": "اسم للتعليمات الحالية",
-      "presetsDescription": "احفظ التعليمات الحالية باسم لتحميلها لاحقًا.",
-      "savePreset": "حفظ",
-      "savedPresets": "الإعدادات المسبقة المحفوظة"
+      "translationModelDescription": "اختر النموذج المستخدم لترجمة النصوص."
     },
     "typesetting": {
       "addFamily": "إضافة عائلة خطوط",
+      "clearSerifFont": "مسح الخط المذيّل",
       "defaultFamilies": "عائلات الخطوط الافتراضية",
       "description": "عيّن مجموعة الخطوط المرتّبة المستخدمة عندما لا يكون لطبقة النص عائلة معيّنة.",
       "empty": "لا توجد عائلات افتراضية. سيستخدم Koharu البديل من النظام.",
@@ -482,6 +518,9 @@
       "loadError": "تعذّر تحميل الخطوط. لا يزال بإمكانك إزالة العائلات الحالية.",
       "loadingFonts": "جارٍ تحميل الخطوط…",
       "removeFamily": "إزالة {{family}}",
+      "serifFont": "خط مذيّل تلقائي",
+      "serifFontDescription": "يُستخدم قبل القائمة الافتراضية عند اكتشاف النص الأصلي كخط مذيّل.",
+      "serifFontNone": "استخدام قائمة الخطوط الافتراضية",
       "title": "تنضيد النص"
     }
   },
@@ -524,6 +563,7 @@
     "decreaseBrushSize": "تقليل حجم الفرشاة",
     "draw": "فرشاة",
     "eraser": "ممحاة",
+    "eraserRequiresRasterLayer": "حدّد طبقة طلاء أو تنظيف قبل استخدام الممحاة.",
     "increaseBrushSize": "زيادة حجم الفرشاة",
     "pan": "تحريك",
     "remove": "إزالة",

@@ -9,10 +9,12 @@ import {
   ArrowUp,
   Brush,
   ChevronDown,
+  Copy,
   Eye,
   EyeOff,
   Folder,
   Image as ImageIcon,
+  Languages,
   Layers3,
   Lock,
   Minus,
@@ -119,7 +121,7 @@ export function Inspector() {
         <h2 className='text-[10px] font-semibold'>{t('inspector.type')}</h2>
       </div>
 
-      <section className='h-48 min-w-0 shrink-0 overflow-hidden border-b'>
+      <section className='h-60 min-w-0 shrink-0 overflow-hidden border-b'>
         <TypeInspector />
       </section>
 
@@ -133,6 +135,8 @@ export function Inspector() {
 function TypeInspector() {
   const { t } = useTranslation()
   const borderWidthId = useId()
+  const lineHeightId = useId()
+  const letterSpacingId = useId()
   const page = usePage().data
   const selectedIds = useKoharuStore((state) => state.selectedLayers)
   const availableFonts = useFonts().data
@@ -190,6 +194,8 @@ function TypeInspector() {
   const strokeColor = typography.stroke_color ?? defaultTypography.stroke_color!
   const strokeEnabled = strokeWidth > 0 && strokeColor[3] > 0
   const displayedStrokeWidth = strokeWidth > 0 ? strokeWidth : 1.5
+  const lineHeight = Math.round((typography.line_height ?? 1.2) * 100) / 100
+  const letterSpacing = Math.round((typography.letter_spacing ?? 0) * 100) / 100
   const writingMode = typography.writing_mode ?? 'Horizontal'
   const writingModeChoice = typography.writing_mode ?? 'Auto'
   const effectiveAlignment =
@@ -425,6 +431,69 @@ function TypeInspector() {
                 </NumberFieldDecrement>
                 <NumberFieldInput aria-label={t('inspector.borderWidth')} />
                 <NumberFieldIncrement aria-label={t('inspector.increaseBorderWidth')}>
+                  <Plus />
+                </NumberFieldIncrement>
+              </NumberFieldGroup>
+            </NumberField>
+          </InspectorField>
+        </div>
+
+        <div className='grid min-w-0 grid-cols-2 gap-1.5'>
+          <InspectorField label={t('inspector.lineHeight')}>
+            <NumberField
+              id={lineHeightId}
+              name='line-height'
+              className='min-w-0'
+              disabled={disabled}
+              value={lineHeight}
+              min={0.5}
+              max={5}
+              step={0.05}
+              onValueChange={(next) => {
+                if (next !== null && next >= 0.5 && next <= 5) {
+                  apply((value) => ({
+                    ...value,
+                    line_height: Math.round(next * 100) / 100,
+                  }))
+                }
+              }}
+            >
+              <NumberFieldGroup>
+                <NumberFieldDecrement aria-label={t('inspector.decreaseLineHeight')}>
+                  <Minus />
+                </NumberFieldDecrement>
+                <NumberFieldInput aria-label={t('inspector.lineHeight')} />
+                <NumberFieldIncrement aria-label={t('inspector.increaseLineHeight')}>
+                  <Plus />
+                </NumberFieldIncrement>
+              </NumberFieldGroup>
+            </NumberField>
+          </InspectorField>
+          <InspectorField label={t('inspector.letterSpacing')}>
+            <NumberField
+              id={letterSpacingId}
+              name='letter-spacing'
+              className='min-w-0'
+              disabled={disabled}
+              value={letterSpacing}
+              min={-0.5}
+              max={2}
+              step={0.02}
+              onValueChange={(next) => {
+                if (next !== null && next >= -0.5 && next <= 2) {
+                  apply((value) => ({
+                    ...value,
+                    letter_spacing: Math.round(next * 100) / 100,
+                  }))
+                }
+              }}
+            >
+              <NumberFieldGroup>
+                <NumberFieldDecrement aria-label={t('inspector.decreaseLetterSpacing')}>
+                  <Minus />
+                </NumberFieldDecrement>
+                <NumberFieldInput aria-label={t('inspector.letterSpacing')} />
+                <NumberFieldIncrement aria-label={t('inspector.increaseLetterSpacing')}>
                   <Plus />
                 </NumberFieldIncrement>
               </NumberFieldGroup>
@@ -823,6 +892,29 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
     ).catch(() => undefined)
   }
 
+  const runTranslate = () => {
+    if (!isTextLayer(layer) || running) return
+    if (!hasSourceText) {
+      toast.add({
+        type: 'warning',
+        title: t('layers.translateBlocked'),
+        description: t('layers.translateRequiresSource'),
+      })
+      return
+    }
+    void call(
+      commands.process,
+      { scope: 'entities', value: [layer.id] },
+      { operation: 'only', stage: 'translation' },
+    ).catch(() => undefined)
+  }
+
+  const copyText = (text: string | undefined) => {
+    const trimmed = text?.trim()
+    if (!trimmed) return
+    void navigator.clipboard?.writeText(trimmed).catch(() => undefined)
+  }
+
   return (
     <div className='grid min-w-0 gap-1.5 px-1.5 pt-0.5 pb-1.5'>
       <div className='flex min-w-0 items-center gap-1.5'>
@@ -877,27 +969,48 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
                   ? t('inspector.autoFit')
                   : t('inspector.unplaced')}
             </span>
-            {canResetTextFrame && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='xs'
-                      aria-label={t('inspector.resetAutoFit')}
-                      className='ml-auto h-5 gap-1 rounded-md px-1.5 text-[9px] font-normal text-muted-foreground hover:text-foreground'
-                      onClick={resetTextFrame}
-                    />
-                  }
-                >
-                  <RotateCcw className='size-3' />
-                  {t('common.reset')}
-                </TooltipTrigger>
-                <TooltipContent side='left'>{t('inspector.resetAutoFit')}</TooltipContent>
-              </Tooltip>
-            )}
-            {ocrTarget && (
+            <div className='ml-auto flex items-center gap-0.5'>
+              {canResetTextFrame && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='xs'
+                        aria-label={t('inspector.resetAutoFit')}
+                        className='h-5 gap-1 rounded-md px-1.5 text-[9px] font-normal text-muted-foreground hover:text-foreground'
+                        onClick={resetTextFrame}
+                      />
+                    }
+                  >
+                    <RotateCcw className='size-3' />
+                    {t('common.reset')}
+                  </TooltipTrigger>
+                  <TooltipContent side='left'>{t('inspector.resetAutoFit')}</TooltipContent>
+                </Tooltip>
+              )}
+              {ocrTarget && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='xs'
+                        disabled={running}
+                        aria-label={t('layers.ocr', { name })}
+                        className='h-5 gap-1 rounded-md px-1.5 text-[9px] font-normal text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
+                        onClick={runOcr}
+                      />
+                    }
+                  >
+                    <ScanText className='size-3' />
+                    OCR
+                  </TooltipTrigger>
+                  <TooltipContent side='left'>{t('layers.ocr', { name })}</TooltipContent>
+                </Tooltip>
+              )}
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -906,20 +1019,34 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
                       variant='ghost'
                       size='xs'
                       disabled={running}
-                      aria-label={t('layers.ocr', { name })}
-                      className={`${canResetTextFrame ? '' : 'ml-auto '}h-5 gap-1 rounded-md px-1.5 text-[9px] font-normal text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40`}
-                      onClick={runOcr}
+                      aria-label={t('layers.translate', { name })}
+                      className='h-5 gap-1 rounded-md px-1.5 text-[9px] font-normal text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
+                      onClick={runTranslate}
                     />
                   }
                 >
-                  <ScanText className='size-3' />
-                  OCR
+                  <Languages className='size-3' />
+                  {t('layers.translateAction')}
                 </TooltipTrigger>
-                <TooltipContent side='left'>{t('layers.ocr', { name })}</TooltipContent>
+                <TooltipContent side='left'>{t('layers.translate', { name })}</TooltipContent>
               </Tooltip>
-            )}
+            </div>
           </div>
-          <InspectorField label={t('inspector.source')}>
+          <InspectorField
+            label={t('inspector.source')}
+            action={
+              layer.content.source?.text.trim() ? (
+                <button
+                  type='button'
+                  aria-label={t('layers.copySource', { name })}
+                  className='grid size-4 place-items-center rounded-sm text-muted-foreground hover:text-foreground'
+                  onClick={() => copyText(layer.content.source?.text)}
+                >
+                  <Copy className='size-2.5' />
+                </button>
+              ) : null
+            }
+          >
             <CommitTextarea
               data-testid={`edit-source-${layer.id}`}
               aria-label={t('layers.sourceLabel', { name })}
@@ -933,7 +1060,21 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
               }
             />
           </InspectorField>
-          <InspectorField label={t('inspector.translation')}>
+          <InspectorField
+            label={t('inspector.translation')}
+            action={
+              layer.content.translation?.text.trim() ? (
+                <button
+                  type='button'
+                  aria-label={t('layers.copyTranslation', { name })}
+                  className='grid size-4 place-items-center rounded-sm text-muted-foreground hover:text-foreground'
+                  onClick={() => copyText(layer.content.translation?.text)}
+                >
+                  <Copy className='size-2.5' />
+                </button>
+              ) : null
+            }
+          >
             <CommitTextarea
               data-testid={`edit-translation-${layer.id}`}
               aria-label={t('layers.translationLabel', { name })}
@@ -947,18 +1088,44 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
               }
             />
           </InspectorField>
+          <InspectorField label={t('inspector.translationNote')}>
+            <CommitTextarea
+              data-testid={`edit-note-${layer.id}`}
+              aria-label={t('layers.translationNoteLabel', { name })}
+              placeholder={t('inspector.translationNotePlaceholder')}
+              wrap='soft'
+              className='max-h-14 min-h-7 w-full max-w-full min-w-0 resize-y overflow-y-auto rounded-md bg-background px-1.5 py-1 text-[11px] leading-4 md:text-[11px]'
+              value={layer.content.note ?? ''}
+              onCommit={(note) =>
+                void call(commands.setTranslationNote, layer.id, note.trim() ? note : null)
+                  .then(() => refresh(projectKey, pageKey))
+                  .catch(() => undefined)
+              }
+            />
+          </InspectorField>
         </>
       )}
     </div>
   )
 }
 
-function InspectorField({ label, children }: { label: string; children: React.ReactNode }) {
+function InspectorField({
+  label,
+  action,
+  children,
+}: {
+  label: string
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
     <div className='grid min-w-0 gap-0.5'>
-      <span className='text-[8px] font-medium tracking-[0.06em] text-muted-foreground uppercase'>
-        {label}
-      </span>
+      <div className='flex items-center justify-between gap-1'>
+        <span className='text-[8px] font-medium tracking-[0.06em] text-muted-foreground uppercase'>
+          {label}
+        </span>
+        {action}
+      </div>
       {children}
     </div>
   )

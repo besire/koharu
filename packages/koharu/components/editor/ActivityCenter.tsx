@@ -1,7 +1,7 @@
 'use client'
 
 import { useMutationState } from '@tanstack/react-query'
-import { CircleAlert, Download, LoaderCircle, Square, X } from 'lucide-react'
+import { CircleAlert, Download, LoaderCircle, RotateCcw, Square, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { call } from '@/lib/backend'
@@ -115,9 +115,29 @@ function JobItem({ job }: { job: Job }) {
     ? t('activity.pageLabel', { number: pageIndex + 1, label: page.label })
     : undefined
   if (job.state === 'failed') {
+    const failedPages = job.failed_pages ?? []
     return (
       <Failure
         message={job.error || t('activity.processingFailed')}
+        detail={
+          failedPages.length > 0
+            ? t('activity.failedPagesCount', { count: failedPages.length })
+            : undefined
+        }
+        onRetry={
+          failedPages.length > 0
+            ? () => {
+                dismiss(job.id)
+                void call(
+                  commands.process,
+                  { scope: 'pages', value: failedPages },
+                  job.stages?.length
+                    ? { operation: 'stages', stages: job.stages }
+                    : { operation: 'full' },
+                ).catch(() => undefined)
+              }
+            : undefined
+        }
         onDismiss={() => dismiss(job.id)}
       />
     )
@@ -193,12 +213,39 @@ function DownloadItem({ download }: { download: DownloadState }) {
   )
 }
 
-function Failure({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+function Failure({
+  message,
+  detail,
+  onRetry,
+  onDismiss,
+}: {
+  message: string
+  detail?: string
+  onRetry?: () => void
+  onDismiss: () => void
+}) {
   const { t } = useTranslation()
   return (
     <div className='grid grid-cols-[1rem_minmax(0,1fr)_2.25rem_1.5rem] items-start gap-x-2.5 border-b p-3 text-[11px] last:border-b-0'>
       <CircleAlert className='mt-0.5 size-3.5 justify-self-center text-destructive' />
-      <span className='col-start-2 col-end-4 min-w-0 text-destructive'>{message}</span>
+      <div className='col-start-2 col-end-4 grid min-w-0 gap-1.5'>
+        <span className='min-w-0 text-destructive'>{message}</span>
+        {detail && <span className='text-[10px] text-muted-foreground'>{detail}</span>}
+        {onRetry && (
+          <div>
+            <Button
+              type='button'
+              size='xs'
+              variant='outline'
+              className='h-6 gap-1 text-[10px]'
+              onClick={onRetry}
+            >
+              <RotateCcw className='size-3' />
+              {t('activity.retryFailedPages')}
+            </Button>
+          </div>
+        )}
+      </div>
       <Button
         size='icon-xs'
         variant='ghost'

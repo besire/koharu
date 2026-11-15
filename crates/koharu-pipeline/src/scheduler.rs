@@ -9,6 +9,7 @@ enum WorkState {
     Pending,
     Running,
     Finished,
+    Failed,
 }
 
 struct StageWork {
@@ -31,7 +32,7 @@ impl PageWork {
     fn finished(&self) -> bool {
         self.stages
             .iter()
-            .all(|work| work.state == WorkState::Finished)
+            .all(|work| matches!(work.state, WorkState::Finished | WorkState::Failed))
     }
 
     fn ready(&self, index: usize) -> bool {
@@ -140,6 +141,54 @@ impl Scheduler {
         }
         page_finished
     }
+
+    pub(crate) fn fail_stage(&mut self, page: EntityId, stage: Stage) -> (usize, bool) {
+        let Some(&page_index) = self.page_index.get(&page) else {
+            return (0, false);
+        };
+        let page = &mut self.pages[page_index];
+        let was_finished = page.finished();
+        let mut newly_failed = 0;
+        if let Some(work) = page.stages.iter_mut().find(|work| work.stage == stage)
+            && work.state != WorkState::Failed
+        {
+            if work.state != WorkState::Finished {
+                newly_failed += 1;
+            }
+            work.state = WorkState::Failed;
+        }
+        loop {
+            let mut cascaded = false;
+            for index in 0..page.stages.len() {
+                if page.stages[index].state != WorkState::Pending {
+                    continue;
+                }
+                let Some(prereq) = prerequisite(page.stages[index].stage) else {
+                    continue;
+                };
+                let prereq_failed = page
+                    .stages
+                    .iter()
+                    .any(|work| work.stage == prereq && work.state == WorkState::Failed);
+                if prereq_failed {
+                    page.stages[index].state = WorkState::Failed;
+                    newly_failed += 1;
+                    cascaded = true;
+                }
+            }
+            if !cascaded {
+                break;
+            }
+        }
+        let page_finished = !was_finished && page.finished();
+        if page_finished {
+            self.active_pages = self.active_pages.saturating_sub(1);
+            while self.head < self.pages.len() && self.pages[self.head].finished() {
+                self.head += 1;
+            }
+        }
+        (newly_failed, page_finished)
+    }
 }
 
 const fn prerequisite(stage: Stage) -> Option<Stage> {
@@ -216,5 +265,24 @@ mod tests {
         assert!(scheduler.complete_stage(pages[0], Stage::Inpainting));
         busy.clear();
         assert_eq!(scheduler.start_next(&busy), Some((pages[1], Stage::Ocr)));
+    }
+
+    #[test]
+    fn failing_stage_cascades_same_page_dependents_and_advances_later_pages() {
+        let pages = pages(2);
+        let mut scheduler = Scheduler::new(&pages, &Stage::ALL);
+        let busy = BTreeSet::new();
+
+        assert_eq!(
+            scheduler.start_next(&busy),
+            Some((pages[0], Stage::Detection))
+        );
+        let (failed_count, page_finished) = scheduler.fail_stage(pages[0], Stage::Detection);
+        assert_eq!(failed_count, 4);
+        assert!(page_finished);
+        assert_eq!(
+            scheduler.start_next(&busy),
+            Some((pages[1], Stage::Detection))
+        );
     }
 }

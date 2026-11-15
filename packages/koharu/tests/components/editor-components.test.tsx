@@ -2014,4 +2014,156 @@ describe('greenfield editor', () => {
     expect(screen.queryByText('one.ttf')).not.toBeInTheDocument()
     expect(screen.queryByText('two.ttf')).not.toBeInTheDocument()
   })
+
+  it('runs single-layer translation and saves per-layer translation notes', async () => {
+    const user = userEvent.setup()
+    installProject()
+    const run = vi.spyOn(commands, 'process').mockResolvedValue('job')
+    const setNote = vi.spyOn(commands, 'setTranslationNote').mockResolvedValue(null)
+    render(
+      <TooltipProvider>
+        <Inspector />
+      </TooltipProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Translate Hello' }))
+    await waitFor(() =>
+      expect(run).toHaveBeenCalledWith(
+        { scope: 'entities', value: ['element'] },
+        { operation: 'only', stage: 'translation' },
+      ),
+    )
+
+    const noteField = screen.getByTestId('edit-note-element')
+    await user.type(noteField, 'Female protagonist speaking politely')
+    await user.tab()
+    await waitFor(() =>
+      expect(setNote).toHaveBeenCalledWith('element', 'Female protagonist speaking politely'),
+    )
+  })
+
+  it('retries only failed pages from a partial batch failure', async () => {
+    installProject()
+    useKoharuStore.setState({
+      jobs: {
+        job: {
+          state: 'failed',
+          id: 'job',
+          completed: 3,
+          total: 4,
+          page: 'page-2',
+          stage: 'translation',
+          model: 'gemma4-e2b-it',
+          error: 'rate limited',
+          failed_pages: ['page-2'],
+          stages: ['ocr', 'translation'],
+        },
+      },
+    })
+    const run = vi.spyOn(commands, 'process').mockResolvedValue('retry-job')
+    render(<ActivityCenter />)
+
+    expect(screen.getByText('1 page failed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry failed pages' }))
+
+    await waitFor(() =>
+      expect(run).toHaveBeenCalledWith(
+        { scope: 'pages', value: ['page-2'] },
+        { operation: 'stages', stages: ['ocr', 'translation'] },
+      ),
+    )
+  })
+
+  it('saves project glossary entries and favorite fonts in preferences', async () => {
+    const user = userEvent.setup()
+    installProject()
+    useKoharuStore.setState({ settingsOpen: true })
+    queryClient.setQueryData(fontsKey, [
+      {
+        name: 'Noto Sans',
+        metadata: {
+          primary_script: 'latn',
+          scripts: ['latn'],
+          languages: ['en'],
+          category: 'SANS_SERIF',
+          classifications: ['sans-serif'],
+          use_cases: ['body-text'],
+        },
+        sources: ['bundled'],
+        faces: [
+          {
+            postscript_name: 'NotoSans-Regular',
+            weight: 400,
+            weight_range: null,
+            style: 'normal',
+          },
+        ],
+      },
+      {
+        name: 'Arial',
+        metadata: {
+          primary_script: 'latn',
+          scripts: ['latn'],
+          languages: ['en'],
+          category: 'SANS_SERIF',
+          classifications: ['sans-serif'],
+          use_cases: ['body-text'],
+        },
+        sources: ['system'],
+        faces: [
+          {
+            postscript_name: 'ArialMT',
+            weight: 400,
+            weight_range: null,
+            style: 'normal',
+          },
+        ],
+      },
+    ])
+    const save = vi
+      .spyOn(commands, 'savePreferences')
+      .mockImplementation(async (pipeline, providers, typesetting) => ({
+        ...preferences,
+        pipeline,
+        providers,
+        typesetting,
+      }))
+
+    render(
+      <ThemeProvider attribute='class'>
+        <SettingsPage />
+      </ThemeProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Translation' }))
+    await user.type(screen.getByRole('textbox', { name: 'Source term' }), '先輩')
+    await user.type(screen.getByRole('textbox', { name: 'Translated term' }), 'Senpai')
+    await user.click(screen.getByRole('button', { name: 'Add glossary entry' }))
+
+    await waitFor(() =>
+      expect(save).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          translation: expect.objectContaining({
+            glossary: [{ source: '先輩', target: 'Senpai' }],
+          }),
+        }),
+        preferences.providers,
+        preferences.typesetting,
+      ),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Typesetting' }))
+    await user.click(screen.getByRole('button', { name: 'Add font family' }))
+    await user.click(await screen.findByRole('button', { name: 'Star Arial' }))
+
+    await waitFor(() =>
+      expect(save).toHaveBeenLastCalledWith(
+        expect.anything(),
+        preferences.providers,
+        expect.objectContaining({
+          favorite_fonts: ['Arial'],
+        }),
+      ),
+    )
+  })
 })

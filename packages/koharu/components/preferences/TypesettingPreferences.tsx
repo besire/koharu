@@ -21,10 +21,20 @@ export function TypesettingPreferences({
   const fonts = useFonts()
   const families = fonts.data ?? []
   const fontFamilies = useMemo(() => value.font_families ?? [], [value.font_families])
+  const favoriteFonts = useMemo(() => value.favorite_fonts ?? [], [value.favorite_fonts])
   const selectedNames = useMemo(() => new Set(fontFamilies.map(normalizeFontName)), [fontFamilies])
   const availableFamilies = families.filter(
     (family) => !selectedNames.has(normalizeFontName(family.name)),
   )
+
+  const toggleFavorite = (family: string) => {
+    const key = normalizeFontName(family)
+    const exists = favoriteFonts.some((candidate) => normalizeFontName(candidate) === key)
+    const favorite_fonts = exists
+      ? favoriteFonts.filter((candidate) => normalizeFontName(candidate) !== key)
+      : [...favoriteFonts, family]
+    onChange({ ...value, favorite_fonts })
+  }
 
   const replaceFamily = (index: number, family: string) => {
     const next = [...fontFamilies]
@@ -80,8 +90,10 @@ export function TypesettingPreferences({
                       <FontPicker
                         value={family}
                         families={choices}
+                        favorites={favoriteFonts}
                         ariaLabel={t('settings.typesetting.familyLabel', { index: index + 1 })}
                         onChange={(next) => replaceFamily(index, next)}
+                        onToggleFavorite={toggleFavorite}
                       />
                     </div>
                     <Button
@@ -112,6 +124,7 @@ export function TypesettingPreferences({
               <FontPicker
                 value=''
                 families={availableFamilies}
+                favorites={favoriteFonts}
                 disabled={fonts.isPending || availableFamilies.length === 0}
                 ariaLabel={t('settings.typesetting.addFamily')}
                 placeholder={
@@ -122,6 +135,7 @@ export function TypesettingPreferences({
                 onChange={(family) =>
                   onChange({ ...value, font_families: [...fontFamilies, family] })
                 }
+                onToggleFavorite={toggleFavorite}
               />
             </div>
             <span aria-hidden='true' className='size-7 shrink-0' />
@@ -132,6 +146,43 @@ export function TypesettingPreferences({
             {t('settings.typesetting.loadError')}
           </p>
         )}
+      </section>
+      <section aria-labelledby='typesetting-serif-font'>
+        <header className='mb-3'>
+          <h3 id='typesetting-serif-font' className='text-[12px] font-semibold'>
+            {t('settings.typesetting.serifFont')}
+          </h3>
+          <p className='mt-0.5 text-[11px] leading-4 text-muted-foreground'>
+            {t('settings.typesetting.serifFontDescription')}
+          </p>
+        </header>
+        <div className='flex min-w-0 items-center gap-3 rounded-xl border border-border/80 bg-[var(--surface-panel)] px-3 py-2.5'>
+          <div className='min-w-0 flex-1'>
+            <FontPicker
+              value={value.serif_font_family ?? ''}
+              families={families}
+              favorites={favoriteFonts}
+              disabled={fonts.isPending || families.length === 0}
+              ariaLabel={t('settings.typesetting.serifFont')}
+              placeholder={t('settings.typesetting.serifFontNone')}
+              onChange={(serif_font_family) => onChange({ ...value, serif_font_family })}
+              onToggleFavorite={toggleFavorite}
+            />
+          </div>
+          {value.serif_font_family && (
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon-sm'
+              aria-label={t('settings.typesetting.clearSerifFont')}
+              title={t('settings.typesetting.clearSerifFont')}
+              className='shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+              onClick={() => onChange({ ...value, serif_font_family: null })}
+            >
+              <Trash2 className='size-3.5' />
+            </Button>
+          )}
+        </div>
       </section>
     </PreferencePage>
   )

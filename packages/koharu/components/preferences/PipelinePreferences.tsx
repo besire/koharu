@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@koharu/ui/components/select'
+import { Switch } from '@koharu/ui/components/switch'
 
 const stages = [
   ['detection', Search],
@@ -112,31 +113,73 @@ function ModelOptions({
   switch (model.model) {
     case 'koharu-layout-rfdetr-seg-2xl':
       return (
-        <div className='grid grid-cols-3 gap-2'>
-          <NumberField
-            label={t('settings.pipeline.options.textThreshold')}
-            value={model.text_threshold ?? null}
-            min={0}
-            max={1}
-            step={0.05}
-            onChange={(text_threshold) => onChange({ ...model, text_threshold })}
-          />
-          <NumberField
-            label={t('settings.pipeline.options.bubbleThreshold')}
-            value={model.bubble_threshold ?? null}
-            min={0}
-            max={1}
-            step={0.05}
-            onChange={(bubble_threshold) => onChange({ ...model, bubble_threshold })}
-          />
-          <NumberField
-            label={t('settings.pipeline.options.panelThreshold')}
-            value={model.panel_threshold ?? null}
-            min={0}
-            max={1}
-            step={0.05}
-            onChange={(panel_threshold) => onChange({ ...model, panel_threshold })}
-          />
+        <div className='grid gap-2.5'>
+          <div className='grid grid-cols-2 gap-2'>
+            <NumberField
+              label={t('settings.pipeline.options.textThreshold')}
+              value={model.text_threshold ?? null}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(text_threshold) => onChange({ ...model, text_threshold })}
+            />
+            <NumberField
+              label={t('settings.pipeline.options.bubbleThreshold')}
+              value={model.bubble_threshold ?? null}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(bubble_threshold) => onChange({ ...model, bubble_threshold })}
+            />
+            <NumberField
+              label={t('settings.pipeline.options.panelThreshold')}
+              value={model.panel_threshold ?? null}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(panel_threshold) => onChange({ ...model, panel_threshold })}
+            />
+            <NumberField
+              label={t('settings.pipeline.options.onomatopoeiaThreshold')}
+              value={model.onomatopoeia_threshold ?? null}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(onomatopoeia_threshold) => onChange({ ...model, onomatopoeia_threshold })}
+            />
+          </div>
+          <label className='flex items-center justify-between gap-3 rounded-lg border border-border/60 px-2.5 py-2 text-[11px]'>
+            <span className='min-w-0'>
+              <span className='block font-medium'>
+                {t('settings.pipeline.options.includeOnomatopoeia')}
+              </span>
+              <span className='block text-[10px] text-muted-foreground'>
+                {t('settings.pipeline.options.includeOnomatopoeiaDescription')}
+              </span>
+            </span>
+            <Switch
+              aria-label={t('settings.pipeline.options.includeOnomatopoeia')}
+              checked={model.include_onomatopoeia ?? false}
+              onCheckedChange={(include_onomatopoeia) =>
+                onChange({ ...model, include_onomatopoeia })
+              }
+            />
+          </label>
+          <label className='flex items-center justify-between gap-3 rounded-lg border border-border/60 px-2.5 py-2 text-[11px]'>
+            <span className='min-w-0'>
+              <span className='block font-medium'>
+                {t('settings.pipeline.options.detectFontStyle')}
+              </span>
+              <span className='block text-[10px] text-muted-foreground'>
+                {t('settings.pipeline.options.detectFontStyleDescription')}
+              </span>
+            </span>
+            <Switch
+              aria-label={t('settings.pipeline.options.detectFontStyle')}
+              checked={model.detect_font_style ?? false}
+              onCheckedChange={(detect_font_style) => onChange({ ...model, detect_font_style })}
+            />
+          </label>
         </div>
       )
     case 'flux2-klein':
@@ -163,6 +206,7 @@ function ModelOptions({
         </div>
       )
     case 'paddleocr-vl-1.6':
+    case 'pp-ocr-v6':
     case 'manga-ocr':
     case 'baberu-ocr':
     case 'hayai-ocr':

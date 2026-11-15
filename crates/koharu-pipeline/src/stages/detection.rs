@@ -17,9 +17,12 @@ use imageproc::{
     geometry::{approximate_polygon_dp, arc_length, contour_area},
     morphology::{close, dilate},
 };
-use koharu_ml::koharu_layout_rfdetr_seg_2xl::{
-    KoharuLayoutDetection, KoharuLayoutDetections, KoharuLayoutMask, KoharuLayoutRFDetrSeg2XL,
-    KoharuLayoutThresholds,
+use koharu_ml::{
+    font_detector::{FontDetector, FontPrediction},
+    koharu_layout_rfdetr_seg_2xl::{
+        KoharuLayoutDetection, KoharuLayoutDetections, KoharuLayoutMask, KoharuLayoutRFDetrSeg2XL,
+        KoharuLayoutThresholds,
+    },
 };
 use koharu_scene::{
     AssetInput, AssetMetadata, AssetRole, At, BubbleRegion, DetectionAnalysis, DetectionLabel,
@@ -49,6 +52,7 @@ const MIN_EXTREME_COLOR_PIXELS: u32 = 4;
 const MIN_MEASURED_STROKE_WIDTH: u8 = 2;
 const DIALOGUE_MASK_CONTAINMENT_THRESHOLD: f32 = 0.9;
 const TEXT_CONTAINMENT_THRESHOLD: f32 = 0.90;
+const FONT_STYLE_EXTENSION_KEY: &str = "dev.koharu.font.style";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Type)]
 #[serde(default)]
@@ -56,6 +60,9 @@ pub struct KoharuLayoutRFDetrSeg2XLConfig {
     pub text_threshold: Option<f32>,
     pub bubble_threshold: Option<f32>,
     pub panel_threshold: Option<f32>,
+    pub onomatopoeia_threshold: Option<f32>,
+    pub include_onomatopoeia: bool,
+    pub detect_font_style: bool,
 }
 
 pub(super) struct Processor {
@@ -71,6 +78,7 @@ impl Processor {
             ("text", &mut settings.text_threshold),
             ("bubble", &mut settings.bubble_threshold),
             ("panel", &mut settings.panel_threshold),
+            ("onomatopoeia", &mut settings.onomatopoeia_threshold),
         ] {
             // A stored threshold is only a preference; refusing to start over one
             // leaves the application unusable until the file is edited by hand.
@@ -137,20 +145,32 @@ impl StageProcessor for Processor {
 
 struct Model {
     network: Arc<Mutex<KoharuLayoutRFDetrSeg2XL>>,
+    font_detector: Option<Arc<Mutex<FontDetector>>>,
     thresholds: KoharuLayoutThresholds,
+    include_onomatopoeia: bool,
 }
 
 impl Model {
     async fn load(device: koharu_ml::Device, config: &DetectionModel) -> Result<Self> {
         let DetectionModel::KoharuLayoutRFDetrSeg2XL(config) = config;
-        let network = KoharuLayoutRFDetrSeg2XL::load(device).await?;
+        let network = KoharuLayoutRFDetrSeg2XL::load(device.clone()).await?;
+        let font_detector = if config.detect_font_style {
+            Some(Arc::new(Mutex::new(FontDetector::load(device).await?)))
+        } else {
+            None
+        };
         let mut thresholds = network.recommended_thresholds();
         thresholds.text = config.text_threshold.unwrap_or(thresholds.text);
         thresholds.bubble = config.bubble_threshold.unwrap_or(thresholds.bubble);
         thresholds.panel = config.panel_threshold.unwrap_or(thresholds.panel);
+        thresholds.onomatopoeia = config
+            .onomatopoeia_threshold
+            .unwrap_or(thresholds.onomatopoeia);
         Ok(Self {
             network: Arc::new(Mutex::new(network)),
+            font_detector,
             thresholds,
+            include_onomatopoeia: config.include_onomatopoeia,
         })
     }
 
@@ -162,7 +182,15 @@ impl Model {
             .await?
             .ok_or_else(|| anyhow!("page {page} has no source image"))?;
         let output = self.detect(image.clone()).await?;
-        build_patch(&input, &image, output, &generation(PRODUCER, MODEL_ID)?).await
+        build_patch(
+            &input,
+            &image,
+            output,
+            self.include_onomatopoeia,
+            self.font_detector.as_ref(),
+            &generation(PRODUCER, MODEL_ID)?,
+        )
+        .await
     }
 
     async fn detect(&self, image: Arc<DynamicImage>) -> Result<KoharuLayoutDetections> {
@@ -190,6 +218,7 @@ struct DetectedText<'a> {
     bounds: [f32; 4],
     content: EntityId,
     layer: EntityId,
+    is_onomatopoeia: bool,
 }
 
 enum RegionOutput<'a> {
@@ -214,6 +243,8 @@ async fn build_patch(
     input: &StageInput,
     image: &DynamicImage,
     output: KoharuLayoutDetections,
+    include_onomatopoeia: bool,
+    font_detector: Option<&Arc<Mutex<FontDetector>>>,
     generation: &Generation,
 ) -> Result<koharu_scene::Patch> {
     let page = input.page;
@@ -221,9 +252,18 @@ async fn build_patch(
     edit.observe_subtree(page)?;
     remove_previous_regions(input, &mut edit, generation)
         .context("failed to replace the previous detection regions")?;
-    write_page(input, &mut edit, page, image, output, generation)
-        .await
-        .context("failed to write detection output")?;
+    write_page(
+        input,
+        &mut edit,
+        page,
+        image,
+        output,
+        include_onomatopoeia,
+        font_detector,
+        generation,
+    )
+    .await
+    .context("failed to write detection output")?;
     finish(edit)
 }
 
@@ -256,12 +296,15 @@ fn remove_previous_regions(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn write_page(
     input: &StageInput,
     edit: &mut koharu_scene::Edit,
     page: EntityId,
     image: &DynamicImage,
     output: KoharuLayoutDetections,
+    include_onomatopoeia: bool,
+    font_detector: Option<&Arc<Mutex<FontDetector>>>,
     generation: &Generation,
 ) -> Result<()> {
     let KoharuLayoutDetections {
@@ -279,29 +322,112 @@ async fn write_page(
     non_maximum_suppression(&mut detections, 0.5);
     sort_by_layout(&mut detections);
 
-    let image = image.to_rgb8();
-    let regions = write_regions(&input.scene, edit, page, &image, &detections, generation)
-        .context("failed to write detected regions")?;
+    let font_styles =
+        infer_detected_font_styles(image, &detections, include_onomatopoeia, font_detector).await?;
+    let rgb = image.to_rgb8();
+    let regions = write_regions(
+        &input.scene,
+        edit,
+        page,
+        &rgb,
+        &detections,
+        &font_styles,
+        include_onomatopoeia,
+        generation,
+    )
+    .context("failed to write detected regions")?;
     link_dialogue_regions(edit, &regions, generation)
         .context("failed to associate detected text with dialogue regions")?;
-    write_masks(input, edit, page, &detections, size)
+    write_masks(input, edit, page, &detections, include_onomatopoeia, size)
         .await
         .context("failed to write detection masks")
 }
 
+async fn infer_detected_font_styles(
+    image: &DynamicImage,
+    detections: &[KoharuLayoutDetection],
+    include_onomatopoeia: bool,
+    font_detector: Option<&Arc<Mutex<FontDetector>>>,
+) -> Result<Vec<Option<&'static str>>> {
+    let mut styles = vec![None; detections.len()];
+    let Some(detector) = font_detector.cloned() else {
+        return Ok(styles);
+    };
+    let mut indices = Vec::new();
+    let mut crops = Vec::new();
+    for (index, detection) in detections.iter().enumerate() {
+        if is_text_like_label(&detection.label, include_onomatopoeia)
+            && let Some(crop) = crop_detection_bbox(image, detection.bbox)
+        {
+            indices.push(index);
+            crops.push(crop);
+        }
+    }
+    if crops.is_empty() {
+        return Ok(styles);
+    }
+    let predictions = tokio_rayon::spawn(move || {
+        let detector = detector
+            .lock()
+            .map_err(|_| anyhow!("font detector lock is poisoned"))?;
+        detector.inference(&crops, 5)
+    })
+    .await?;
+    for (index, prediction) in indices.into_iter().zip(predictions) {
+        styles[index] = classify_font_style(&prediction);
+    }
+    Ok(styles)
+}
+
+fn crop_detection_bbox(image: &DynamicImage, bbox: [f32; 4]) -> Option<DynamicImage> {
+    let left = bbox[0].floor().max(0.0) as u32;
+    let top = bbox[1].floor().max(0.0) as u32;
+    let right = bbox[2].ceil().max(0.0).min(image.width() as f32) as u32;
+    let bottom = bbox[3].ceil().max(0.0).min(image.height() as f32) as u32;
+    (right > left && bottom > top).then(|| image.crop_imm(left, top, right - left, bottom - top))
+}
+
+fn classify_font_style(prediction: &FontPrediction) -> Option<&'static str> {
+    let mut serif_prob = 0.0_f32;
+    let mut sans_prob = 0.0_f32;
+    for font in &prediction.named_fonts {
+        if font.serif {
+            serif_prob += font.probability;
+        } else {
+            sans_prob += font.probability;
+        }
+    }
+    let total = serif_prob + sans_prob;
+    if total < 0.05 {
+        return None;
+    }
+    if serif_prob > sans_prob * 1.15 {
+        Some("serif")
+    } else {
+        Some("sans")
+    }
+}
+
+fn is_text_like_label(label: &str, include_onomatopoeia: bool) -> bool {
+    label == "text" || (include_onomatopoeia && label == "onomatopoeia")
+}
+
+#[allow(clippy::too_many_arguments)]
 fn write_regions<'a>(
     snapshot: &koharu_scene::Snapshot,
     edit: &mut koharu_scene::Edit,
     page: EntityId,
     image: &RgbImage,
     detections: &'a [KoharuLayoutDetection],
+    font_styles: &[Option<&'static str>],
+    include_onomatopoeia: bool,
     generation: &Generation,
 ) -> Result<PageRegions<'a>> {
     let mut regions = PageRegions::default();
     let inferred = detections
         .par_iter()
         .map(|detection| {
-            (detection.label == "text")
+            is_text_like_label(&detection.label, include_onomatopoeia)
                 .then(|| infer_typography(image, detection))
                 .flatten()
         })
@@ -315,9 +441,22 @@ fn write_regions<'a>(
     } else {
         None
     };
-    for (index, (detection, inferred)) in detections.iter().zip(inferred).enumerate() {
-        match write_region(edit, page, detection, inferred, generation)
-            .with_context(|| format!("failed to write {} detection {index}", detection.label))?
+    for (index, ((detection, inferred), font_style)) in detections
+        .iter()
+        .zip(inferred)
+        .zip(font_styles.iter().copied())
+        .enumerate()
+    {
+        match write_region(
+            edit,
+            page,
+            detection,
+            inferred,
+            font_style,
+            include_onomatopoeia,
+            generation,
+        )
+        .with_context(|| format!("failed to write {} detection {index}", detection.label))?
         {
             RegionOutput::Bubble(bubble) => regions.bubbles.push(bubble),
             RegionOutput::Text(text) => {
@@ -338,15 +477,18 @@ fn write_region<'a>(
     page: EntityId,
     detection: &'a KoharuLayoutDetection,
     inferred: Option<InferredTypography>,
+    font_style: Option<&'static str>,
+    include_onomatopoeia: bool,
     generation: &Generation,
 ) -> Result<RegionOutput<'a>> {
     let entity = edit
         .add_entity(page, At::End)
         .context("failed to create a detected region")?;
-    let kind = region_kind(&detection.label)?;
+    let text_like = is_text_like_label(&detection.label, include_onomatopoeia);
+    let kind = region_kind(&detection.label, include_onomatopoeia)?;
     let geometry = if detection.label == "bubble" {
         mask_geometry(&detection.mask).unwrap_or_else(|| rectangle_geometry(detection.bbox))
-    } else if detection.label == "text" {
+    } else if text_like {
         inferred.map_or_else(
             || rectangle_geometry(detection.bbox),
             |typography| rotated_rectangle_geometry(detection.bbox, typography.angle_degrees),
@@ -376,7 +518,7 @@ fn write_region<'a>(
         },
     )
     .context("failed to set detection analysis")?;
-    if detection.label != "text" {
+    if !text_like {
         return Ok(if detection.label == "bubble" {
             RegionOutput::Bubble(DetectedRegion {
                 entity,
@@ -388,6 +530,7 @@ fn write_region<'a>(
         });
     }
 
+    let is_onomatopoeia = detection.label == "onomatopoeia";
     let content = edit.add_text_content(page, At::End)?;
     let layer = edit.add_text_layer(
         page,
@@ -399,8 +542,17 @@ fn write_region<'a>(
             angle_degrees: None,
         },
     )?;
-    write_text_role(edit, content, "dev.koharu.text.free-text", generation)
+    let role = if is_onomatopoeia {
+        "dev.koharu.text.onomatopoeia"
+    } else {
+        "dev.koharu.text.free-text"
+    };
+    write_text_role(edit, content, role, generation)
         .context("failed to set the detected text role")?;
+    let mut extensions = BTreeMap::new();
+    if let Some(style) = font_style {
+        extensions.insert(FONT_STYLE_EXTENSION_KEY.to_owned(), style.to_owned());
+    }
     edit.set(
         layer,
         &Typography {
@@ -417,7 +569,9 @@ fn write_region<'a>(
             stroke_width: inferred.and_then(|value| value.stroke_width),
             alignment: None,
             writing_mode: inferred.map(|value| value.writing_mode),
-            extensions: Default::default(),
+            extensions,
+            line_height: None,
+            letter_spacing: None,
         },
     )
     .context("failed to set detected typography")?;
@@ -430,6 +584,7 @@ fn write_region<'a>(
         bounds: detection.bbox,
         content,
         layer,
+        is_onomatopoeia,
     }))
 }
 
@@ -443,7 +598,9 @@ fn link_dialogue_regions(
         if let Some(bubble) = bubble {
             edit.relate::<Inside>(text.entity, bubble.entity)?;
             edit.relate::<FlowsIn>(text.layer, bubble.entity)?;
-            write_text_role(edit, text.content, "dev.koharu.text.dialogue", generation)?;
+            if !text.is_onomatopoeia {
+                write_text_role(edit, text.content, "dev.koharu.text.dialogue", generation)?;
+            }
         } else {
             edit.relate::<FitsTo>(text.layer, text.entity)?;
         }
@@ -1360,9 +1517,10 @@ async fn write_masks(
     edit: &mut koharu_scene::Edit,
     page: EntityId,
     detections: &[KoharuLayoutDetection],
+    include_onomatopoeia: bool,
     size: ImageSize,
 ) -> Result<()> {
-    write_mask(input, edit, page, detections, size).await?;
+    write_mask(input, edit, page, detections, include_onomatopoeia, size).await?;
     edit.remove_asset(page, &AssetRole::new("bubble-mask")?)?;
     Ok(())
 }
@@ -1372,15 +1530,21 @@ async fn write_mask(
     edit: &mut koharu_scene::Edit,
     page: EntityId,
     detections: &[KoharuLayoutDetection],
+    include_onomatopoeia: bool,
     size: ImageSize,
 ) -> Result<()> {
+    let labels: &[&str] = if include_onomatopoeia {
+        &["text", "onomatopoeia"]
+    } else {
+        &["text"]
+    };
     let mut mask = if size.width > 0 && size.height > 0 {
         let radius = ((size.width.max(size.height) as f32 / 1024.0) * 6.0)
             .round()
             .clamp(1.0, 255.0) as u8;
-        closed_mask_for(detections, "text", size, radius)
+        closed_mask_for_labels(detections, labels, size, radius)
     } else {
-        mask_for(detections, "text", size)
+        mask_for_labels(detections, labels, size)
     };
     if let Some(bounds) = input.region {
         preserve_mask_outside_region(input, page, "text-mask", bounds, &mut mask).await?;
@@ -1441,9 +1605,10 @@ async fn preserve_mask_outside_region(
     Ok(())
 }
 
-fn region_kind(label: &str) -> Result<RegionKind> {
+fn region_kind(label: &str, include_onomatopoeia: bool) -> Result<RegionKind> {
     RegionKind::new(match label {
         "text" => TextRegion::KIND,
+        "onomatopoeia" if include_onomatopoeia => TextRegion::KIND,
         "bubble" => BubbleRegion::KIND,
         "panel" => PanelRegion::KIND,
         _ => "dev.koharu.region.unknown",
@@ -1451,23 +1616,45 @@ fn region_kind(label: &str) -> Result<RegionKind> {
     .map_err(Into::into)
 }
 
+#[cfg(test)]
 fn mask_for(detections: &[KoharuLayoutDetection], label: &str, size: ImageSize) -> GrayImage {
+    mask_for_labels(detections, &[label], size)
+}
+
+fn mask_for_labels(
+    detections: &[KoharuLayoutDetection],
+    labels: &[&str],
+    size: ImageSize,
+) -> GrayImage {
     let mut mask = GrayImage::new(size.width, size.height);
-    for detection in detections.iter().filter(|value| value.label == label) {
+    for detection in detections
+        .iter()
+        .filter(|value| labels.contains(&value.label.as_str()))
+    {
         stamp_mask(&mut mask, &detection.mask, 0, 0);
     }
     mask
 }
 
+#[cfg(test)]
 fn closed_mask_for(
     detections: &[KoharuLayoutDetection],
     label: &str,
     size: ImageSize,
     radius: u8,
 ) -> GrayImage {
+    closed_mask_for_labels(detections, &[label], size, radius)
+}
+
+fn closed_mask_for_labels(
+    detections: &[KoharuLayoutDetection],
+    labels: &[&str],
+    size: ImageSize,
+    radius: u8,
+) -> GrayImage {
     let masks = detections
         .iter()
-        .filter(|detection| detection.label == label)
+        .filter(|detection| labels.contains(&detection.label.as_str()))
         .map(|detection| &detection.mask)
         .filter(|mask| valid_mask(mask) && mask.width > 0 && mask.height > 0)
         .collect::<Vec<_>>();
@@ -1746,7 +1933,8 @@ fn sort_by_layout(detections: &mut Vec<KoharuLayoutDetection>) {
 fn layout_order(detections: &[KoharuLayoutDetection]) -> Vec<usize> {
     let panels = indices_with_label(detections, "panel");
     let bubbles = indices_with_label(detections, "bubble");
-    let texts = indices_with_label(detections, "text");
+    let mut texts = indices_with_label(detections, "text");
+    texts.extend(indices_with_label(detections, "onomatopoeia"));
 
     let mut panel_for_bubble = vec![None; detections.len()];
     for &bubble in &bubbles {
@@ -1935,6 +2123,7 @@ mod tests {
                 text_threshold: Some(15.0),
                 bubble_threshold: Some(f32::NAN),
                 panel_threshold: Some(0.55),
+                ..Default::default()
             }),
             koharu_ml::Device::cpu(),
         );
@@ -2035,6 +2224,7 @@ mod tests {
                             bounds: [0.0, 0.0, 1.0, 1.0],
                             content,
                             layer,
+                            is_onomatopoeia: false,
                         }],
                     },
                     &generation,
@@ -2323,8 +2513,9 @@ mod tests {
         let mut layer = None;
         let patch = snapshot
             .patch(|edit| {
-                let output = write_region(edit, page, &detection, inferred, &generation).unwrap();
-                let RegionOutput::Text(text) = output else {
+                let run_gen = &generation;
+                let out = write_region(edit, page, &detection, inferred, None, false, run_gen);
+                let RegionOutput::Text(text) = out.unwrap() else {
                     panic!("expected a text region");
                 };
                 layer = Some(text.layer);
@@ -2990,5 +3181,38 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert!(color_palette(&pixels).len() <= 16 * 16 * 16);
+    }
+
+    #[test]
+    fn onomatopoeia_promotion_and_font_style_classification_follow_settings() {
+        assert_eq!(
+            super::region_kind("onomatopoeia", false).unwrap().as_str(),
+            "dev.koharu.region.unknown"
+        );
+        assert_eq!(
+            super::region_kind("onomatopoeia", true).unwrap().as_str(),
+            <TextRegion as koharu_scene::RegionSpec>::KIND
+        );
+
+        let serif = koharu_ml::font_detector::FontPrediction {
+            named_fonts: vec![
+                koharu_ml::font_detector::NamedFontPrediction {
+                    index: 0,
+                    name: "SerifJP".to_owned(),
+                    language: Some("ja".to_owned()),
+                    probability: 0.72,
+                    serif: true,
+                },
+                koharu_ml::font_detector::NamedFontPrediction {
+                    index: 1,
+                    name: "GothicJP".to_owned(),
+                    language: Some("ja".to_owned()),
+                    probability: 0.18,
+                    serif: false,
+                },
+            ],
+            ..koharu_ml::font_detector::FontPrediction::default()
+        };
+        assert_eq!(super::classify_font_style(&serif), Some("serif"));
     }
 }

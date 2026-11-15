@@ -28,6 +28,7 @@ export const commands = {
 	movePage: (page: EntityId, index: number) => __TAURI_INVOKE<null>("move_page", { page, index }),
 	setSourceText: (layer: EntityId, text: string) => __TAURI_INVOKE<null>("set_source_text", { layer, text }),
 	setTranslation: (layer: EntityId, text: string | null) => __TAURI_INVOKE<null>("set_translation", { layer, text }),
+	setTranslationNote: (layer: EntityId, note: string | null) => __TAURI_INVOKE<null>("set_translation_note", { layer, note }),
 	setTypography: (updates: TypographyUpdate[]) => __TAURI_INVOKE<null>("set_typography", { updates }),
 	setGeometry: (updates: GeometryUpdate[]) => __TAURI_INVOKE<null>("set_geometry", { updates }),
 	setVisibility: (layers: EntityId[], visible: boolean | null, opacity: number | null) => __TAURI_INVOKE<null>("set_visibility", { layers, visible, opacity }),
@@ -231,6 +232,11 @@ export type GeometryUpdate = {
 	points: Point[] | null,
 };
 
+export type GlossaryEntry = {
+	source: string,
+	target: string,
+};
+
 export type GoogleCloudConfig = Record<string, never>;
 
 export type GrokConfig = Record<string, never>;
@@ -257,6 +263,8 @@ export type Job = {
 	stage: Stage | null,
 	model: string | null,
 	error: string | null,
+	failed_pages?: EntityId[],
+	stages?: Stage[],
 };
 
 export type JobId = string;
@@ -267,6 +275,9 @@ export type KoharuLayoutRFDetrSeg2XLConfig = {
 	text_threshold?: number | null,
 	bubble_threshold?: number | null,
 	panel_threshold?: number | null,
+	onomatopoeia_threshold?: number | null,
+	include_onomatopoeia?: boolean,
+	detect_font_style?: boolean,
 };
 
 export type LanguageChoice = {
@@ -320,7 +331,7 @@ export type ModelSelection = {
 	reasoning?: boolean,
 };
 
-export type OcrModel = { model: "paddleocr-vl-1.6" } | { model: "manga-ocr" } | { model: "baberu-ocr" } | { model: "hayai-ocr" };
+export type OcrModel = { model: "paddleocr-vl-1.6" } | { model: "manga-ocr" } | { model: "baberu-ocr" } | { model: "hayai-ocr" } | { model: "pp-ocr-v6" };
 
 export type OpenAiCompatibleConfig = {
 	base_url?: string | null,
@@ -479,6 +490,7 @@ export type TextContent = {
 	id: EntityId,
 	source: SourceText | null,
 	translation: Translation | null,
+	note?: string | null,
 	role: string | null,
 	source_region: EntityId | null,
 };
@@ -503,10 +515,13 @@ export type TranslationConfig = {
 	target_language: string,
 	instructions: string | null,
 	instruction_presets?: InstructionPreset[],
+	glossary?: GlossaryEntry[],
 };
 
 export type TypesettingConfig = {
 	font_families?: string[],
+	serif_font_family?: string | null,
+	favorite_fonts?: string[],
 };
 
 export type Typography = {
@@ -520,6 +535,8 @@ export type Typography = {
 	stroke_width: number | null,
 	alignment: TextAlignment | null,
 	writing_mode: WritingMode | null,
+	line_height?: number | null,
+	letter_spacing?: number | null,
 };
 
 export type TypographyUpdate = {

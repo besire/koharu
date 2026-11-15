@@ -48,6 +48,10 @@ pub struct Job {
     pub stage: Option<koharu_pipeline::Stage>,
     pub model: Option<String>,
     pub error: Option<String>,
+    #[serde(default)]
+    pub failed_pages: Vec<koharu_scene::EntityId>,
+    #[serde(default)]
+    pub stages: Vec<koharu_pipeline::Stage>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Type)]
@@ -107,6 +111,8 @@ pub(crate) async fn process(
         stage: None,
         model: None,
         error: None,
+        failed_pages: Vec::new(),
+        stages: Vec::new(),
     };
     processing.jobs.lock().insert(id, job.clone());
     job_channel.channel.publish(job);
@@ -125,13 +131,16 @@ pub(crate) async fn process(
             inpainting_mask,
         };
         request.progress = Some(Arc::new(move |event| {
+            let mut started_stages = None;
             let update = match event {
                 Progress::Started { pages, stages } => {
                     let mut progress = progress.lock();
                     *progress = (0, pages.len().saturating_mul(stages.len()));
+                    started_stages = Some(stages);
                     Some((0, progress.1, None, None, None))
                 }
-                Progress::Loading { page, stage, model } => {
+                Progress::Loading { page, stage, model }
+                | Progress::Running { page, stage, model } => {
                     let progress = progress.lock();
                     Some((progress.0, progress.1, Some(page), Some(stage), Some(model)))
                 }
@@ -147,7 +156,6 @@ pub(crate) async fn process(
                     progress.0 = progress.0.saturating_add(1).min(progress.1);
                     Some((progress.0, progress.1, Some(page), Some(stage), None))
                 }
-                Progress::Running { .. } => None,
             };
             if let Some((completed, total, page, stage, model)) = update {
                 let job = {
@@ -159,6 +167,9 @@ pub(crate) async fn process(
                         job.page = page;
                         job.stage = stage;
                         job.model = model;
+                        if let Some(stages) = started_stages {
+                            job.stages = stages;
+                        }
                         job.clone()
                     })
                 };
@@ -199,11 +210,23 @@ pub(crate) async fn process(
             handle: task_handle.clone(),
         };
         let result = pipeline.execute(snapshot, request, &mut committer).await;
-        let (stopped, error) = match result {
-            Ok(report) => (report.status == RunStatus::Stopped, None),
+        let (stopped, error, failed_page, failed_stage, failed_pages) = match result {
+            Ok(report) => (
+                report.status == RunStatus::Stopped,
+                None,
+                None,
+                None,
+                Vec::new(),
+            ),
             Err(error) => {
                 tracing::error!(stage = ?error.stage, %error, "processing failed");
-                (false, Some(format!("{error:#}")))
+                (
+                    false,
+                    Some(format!("{error:#}")),
+                    error.page,
+                    error.stage,
+                    error.failed_pages.clone(),
+                )
             }
         };
         task_handle.state::<Processing>().stops.lock().remove(&id);
@@ -220,7 +243,14 @@ pub(crate) async fn process(
                 } else {
                     JobState::Finished
                 };
+                if failed_page.is_some() {
+                    job.page = failed_page;
+                }
+                if failed_stage.is_some() {
+                    job.stage = failed_stage;
+                }
                 job.error = error;
+                job.failed_pages = failed_pages;
                 job
             });
         if let Some(job) = job {

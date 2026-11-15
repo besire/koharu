@@ -11,7 +11,7 @@ import { ToolBar } from '@/components/editor/ToolBar'
 import { useCanvas } from '@/components/editor/useCanvas'
 import { call } from '@/lib/backend'
 import { rememberColor } from '@/lib/colorHistory'
-import { expandLayerSelection } from '@/lib/document'
+import { expandLayerSelection, isTextLayer } from '@/lib/document'
 import {
   controlFrame,
   draftFrame,
@@ -136,6 +136,28 @@ export function CanvasWorkspace() {
     selected.length === 1
       ? page?.layers.find((layer) => layer.id === selected[0] && layer.type === 'raster')
       : undefined
+  const previousTool = useRef(tool)
+
+  useEffect(() => {
+    const prior = previousTool.current
+    previousTool.current = tool
+    if (prior === tool || activeRaster || !page) return
+    if (tool === 'eraser') {
+      const candidate =
+        [...page.layers]
+          .reverse()
+          .find((layer) => layer.type === 'raster' && layer.visibility.visible) ??
+        [...page.layers].reverse().find((layer) => layer.type === 'raster')
+      if (candidate) selectLayers([candidate.id])
+    } else if (tool === 'draw') {
+      const candidate = [...page.layers]
+        .reverse()
+        .find(
+          (layer) => layer.type === 'raster' && layer.kind === 'paint' && layer.visibility.visible,
+        )
+      if (candidate) selectLayers([candidate.id])
+    }
+  }, [activeRaster, page, selectLayers, tool])
 
   const enqueue = useCallback(<Result,>(operation: () => Promise<Result>): Promise<Result> => {
     const pending = commandQueue.current.then(operation)
@@ -411,6 +433,24 @@ export function CanvasWorkspace() {
       if (command && event.key.toLowerCase() === 'a' && page) {
         event.preventDefault()
         selectLayers(page.layers.filter(selectableLayer).map((layer) => layer.id))
+        return
+      }
+      if (command && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'c' && page) {
+        if (window.getSelection()?.toString()) return
+        const expanded = expandLayerSelection(page.layers, state.selectedLayers)
+        const copied = page.layers
+          .filter(isTextLayer)
+          .filter((layer) => expanded.includes(layer.id))
+          .map(
+            (layer) =>
+              layer.content.translation?.text.trim() || layer.content.source?.text.trim() || '',
+          )
+          .filter(Boolean)
+          .join('\n')
+        if (copied) {
+          event.preventDefault()
+          void navigator.clipboard?.writeText(copied).catch(() => undefined)
+        }
         return
       }
       if (
@@ -780,23 +820,30 @@ export function CanvasWorkspace() {
                 receiveError(errorMessage(error))
               }
             } else if (tool === 'eraser') {
-              if (!activeRaster) {
-                receiveError('Select a paint or cleanup layer before using the Eraser.')
+              const targetRaster =
+                activeRaster ??
+                [...page.layers]
+                  .reverse()
+                  .find((layer) => layer.type === 'raster' && layer.visibility.visible) ??
+                [...page.layers].reverse().find((layer) => layer.type === 'raster')
+              if (!targetRaster) {
+                receiveError(t('tools.eraserRequiresRasterLayer'))
                 return
               }
+              if (!activeRaster) selectLayers([targetRaster.id])
               strokeUpdates.clear()
               gesture.current = {
                 kind: 'erase',
                 pointer: event.pointerId,
                 revision: canvasRevision,
-                layer: activeRaster.id,
+                layer: targetRaster.id,
                 points: [point],
                 diameter: brush.diameter,
               }
               try {
                 canvas.beginStroke({
                   kind: 'erase',
-                  layer: activeRaster.id,
+                  layer: targetRaster.id,
                   point,
                   diameter: brush.diameter,
                 })

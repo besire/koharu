@@ -2,11 +2,13 @@
 
 import { observeElementRect, useVirtualizer } from '@tanstack/react-virtual'
 import type { TFunction } from 'i18next'
-import { ChevronDown, ListFilter, Search, X } from 'lucide-react'
+import { ChevronDown, ListFilter, Search, Star, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { savePreferences } from '@/lib/backend'
 import { useFontPreview } from '@/lib/queries'
+import { receivePreferences, useKoharuStore } from '@/lib/store'
 import type { FontFamily, FontSource } from '@koharu/bridge/protocol'
 import { Badge } from '@koharu/ui/components/badge'
 import { Button } from '@koharu/ui/components/button'
@@ -43,48 +45,88 @@ type Filters = {
   script: string
   category: string
   useCase: string
+  favoritesOnly: boolean
 }
 
-const emptyFilters: Filters = { source: '', script: '', category: '', useCase: '' }
+const emptyFilters: Filters = {
+  source: '',
+  script: '',
+  category: '',
+  useCase: '',
+  favoritesOnly: false,
+}
 
 export function FontPicker({
   value,
   families,
+  favorites,
   disabled,
   size = 'default',
   ariaLabel,
   placeholder,
   onChange,
+  onToggleFavorite,
 }: {
   value: string
   families: FontFamily[]
+  favorites?: string[]
   disabled?: boolean
   size?: 'default' | 'sm'
   ariaLabel?: string
   placeholder?: string
   onChange: (family: string) => void
+  onToggleFavorite?: (family: string) => void
 }) {
   const { t } = useTranslation()
+  const storePreferences = useKoharuStore((state) => state.preferences)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<Filters>(emptyFilters)
   const input = useRef<HTMLInputElement>(null)
+  const effectiveFavorites = useMemo(
+    () => favorites ?? storePreferences?.typesetting.favorite_fonts ?? [],
+    [favorites, storePreferences],
+  )
+  const favoriteSet = useMemo(
+    () => new Set(effectiveFavorites.map(normalizeFontName)),
+    [effectiveFavorites],
+  )
+  const toggleFavorite = (familyName: string) => {
+    if (onToggleFavorite) {
+      onToggleFavorite(familyName)
+      return
+    }
+    if (!storePreferences) return
+    const key = normalizeFontName(familyName)
+    const nextFavorites = favoriteSet.has(key)
+      ? effectiveFavorites.filter((candidate) => normalizeFontName(candidate) !== key)
+      : [...effectiveFavorites, familyName]
+    const nextTypesetting = { ...storePreferences.typesetting, favorite_fonts: nextFavorites }
+    receivePreferences({ ...storePreferences, typesetting: nextTypesetting })
+    void savePreferences(storePreferences.pipeline, storePreferences.providers, nextTypesetting)
+      .then(receivePreferences)
+      .catch(() => undefined)
+  }
   const orderedFamilies = useMemo(
     () =>
       [...families].sort(
         (left, right) =>
+          Number(favoriteSet.has(normalizeFontName(right.name))) -
+            Number(favoriteSet.has(normalizeFontName(left.name))) ||
           scriptRank(left) - scriptRank(right) ||
           left.name.localeCompare(right.name, undefined, {
             numeric: true,
             sensitivity: 'base',
           }),
       ),
-    [families],
+    [families, favoriteSet],
   )
   const facets = useMemo(() => fontFacets(orderedFamilies), [orderedFamilies])
   const results = useMemo(() => {
     const normalized = normalizeFontName(query)
     return orderedFamilies.filter((family) => {
+      const matchesFavorites =
+        !filters.favoritesOnly || favoriteSet.has(normalizeFontName(family.name))
       const matchesQuery =
         !normalized ||
         [family.name, ...family.faces.map((face) => face.postscript_name)].some((name) =>
@@ -100,9 +142,16 @@ export function FontPicker({
         !filters.useCase ||
         family.metadata.classifications.includes(filters.useCase) ||
         family.metadata.use_cases.includes(filters.useCase)
-      return matchesQuery && matchesSource && matchesScript && matchesCategory && matchesUse
+      return (
+        matchesFavorites &&
+        matchesQuery &&
+        matchesSource &&
+        matchesScript &&
+        matchesCategory &&
+        matchesUse
+      )
     })
-  }, [filters, orderedFamilies, query])
+  }, [favoriteSet, filters, orderedFamilies, query])
   const selectedFamily = useMemo(
     () =>
       orderedFamilies.find((family) => normalizeFontName(family.name) === normalizeFontName(value)),
@@ -168,6 +217,16 @@ export function FontPicker({
                   <X />
                 </InputGroupButton>
               )}
+              <InputGroupButton
+                aria-label={t('fontPicker.favoritesOnly')}
+                aria-pressed={filters.favoritesOnly}
+                className={cn(filters.favoritesOnly && 'bg-accent text-amber-500')}
+                onClick={() =>
+                  setFilters((current) => ({ ...current, favoritesOnly: !current.favoritesOnly }))
+                }
+              >
+                <Star className={cn('size-3', filters.favoritesOnly && 'fill-current')} />
+              </InputGroupButton>
               <FontFilterMenu
                 filters={filters}
                 facets={facets}
@@ -185,9 +244,11 @@ export function FontPicker({
         <Separator />
         {open && (
           <FontList
-            key={`${query}:${filters.source}:${filters.script}:${filters.category}:${filters.useCase}`}
+            key={`${query}:${filters.favoritesOnly}:${filters.source}:${filters.script}:${filters.category}:${filters.useCase}`}
             families={results}
+            favoriteSet={favoriteSet}
             value={value}
+            onToggleFavorite={toggleFavorite}
             onSelect={(family) => {
               onChange(family)
               setOpen(false)
@@ -211,7 +272,12 @@ function FontFilterMenu({
   onClear: () => void
 }) {
   const { t } = useTranslation()
-  const activeFilterCount = Object.values(filters).filter(Boolean).length
+  const activeFilterCount = [
+    filters.source,
+    filters.script,
+    filters.category,
+    filters.useCase,
+  ].filter(Boolean).length
 
   return (
     <DropdownMenu>
@@ -341,12 +407,16 @@ function FontResultSummary({
 
 function FontList({
   families,
+  favoriteSet,
   value,
   onSelect,
+  onToggleFavorite,
 }: {
   families: FontFamily[]
+  favoriteSet: ReadonlySet<string>
   value: string
   onSelect: (family: string) => void
+  onToggleFavorite: (family: string) => void
 }) {
   const { t } = useTranslation()
   const list = useRef<HTMLDivElement>(null)
@@ -388,34 +458,56 @@ function FontList({
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const family = families[virtualRow.index]
           if (!family) return null
-          const selected = normalizeFontName(family.name) === normalizeFontName(value)
+          const normalizedName = normalizeFontName(family.name)
+          const selected = normalizedName === normalizeFontName(value)
+          const starred = favoriteSet.has(normalizedName)
           const source = t(
             family.sources.includes('bundled')
               ? 'fontPicker.sources.bundled'
               : 'fontPicker.sources.system',
           )
           return (
-            <button
+            <div
               key={virtualRow.key}
-              type='button'
-              role='option'
-              aria-label={t('fontPicker.fontLabel', { family: family.name, source })}
-              aria-selected={selected}
               className={cn(
-                'absolute inset-x-0 top-0 flex h-9.5 w-full items-center px-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
+                'group/font absolute inset-x-0 top-0 flex h-9.5 w-full items-center hover:bg-accent',
                 selected && 'bg-accent text-accent-foreground',
               )}
               style={{ transform: `translateY(${virtualRow.start}px)` }}
-              onClick={() => onSelect(family.name)}
             >
-              <div className='flex min-w-0 flex-1 flex-col justify-center gap-px'>
-                <FontPreviewLabel family={family} className='h-4.5 w-full min-w-0' />
-                <div className='flex min-w-0 items-center justify-between gap-2 text-[8px] leading-none text-muted-foreground'>
-                  <span className='min-w-0 truncate'>{family.name}</span>
-                  <span className='shrink-0'>{source}</span>
+              <button
+                type='button'
+                role='option'
+                aria-label={t('fontPicker.fontLabel', { family: family.name, source })}
+                aria-selected={selected}
+                className='flex h-full min-w-0 flex-1 items-center pl-2 pr-1 text-left focus-visible:bg-accent focus-visible:outline-none'
+                onClick={() => onSelect(family.name)}
+              >
+                <div className='flex min-w-0 flex-1 flex-col justify-center gap-px'>
+                  <FontPreviewLabel family={family} className='h-4.5 w-full min-w-0' />
+                  <div className='flex min-w-0 items-center justify-between gap-2 text-[8px] leading-none text-muted-foreground'>
+                    <span className='min-w-0 truncate'>{family.name}</span>
+                    <span className='shrink-0'>{source}</span>
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+              <button
+                type='button'
+                aria-label={
+                  starred
+                    ? t('fontPicker.unfavoriteFont', { family: family.name })
+                    : t('fontPicker.favoriteFont', { family: family.name })
+                }
+                aria-pressed={starred}
+                className={cn(
+                  'mr-1 grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground transition-opacity hover:text-amber-500 focus-visible:opacity-100 focus-visible:outline-none',
+                  starred ? 'text-amber-500 opacity-100' : 'opacity-0 group-hover/font:opacity-100',
+                )}
+                onClick={() => onToggleFavorite(family.name)}
+              >
+                <Star className={cn('size-3', starred && 'fill-current')} />
+              </button>
+            </div>
           )
         })}
       </div>

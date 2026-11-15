@@ -4,10 +4,17 @@ use super::{StageInput, StageProcessor, finish, generation};
 use crate::{ModelCell, OcrModel, scope::geometry_extents};
 use anyhow::{Context as _, Result, anyhow, bail};
 use async_trait::async_trait;
-use image::DynamicImage;
+use image::{DynamicImage, Rgb, RgbImage, imageops};
 use koharu_ml::{
-    baberu_ocr::BaberuOcr, hayai_ocr::HayaiOcr, manga_ocr::MangaOcr,
-    paddle_ocr_vl::PaddleOCRVLTask, paddle_ocr_vl_quantized::PaddleOCRVLQuantized,
+    baberu_ocr::BaberuOcr,
+    hayai_ocr::HayaiOcr,
+    manga_ocr::MangaOcr,
+    paddle_ocr_vl::PaddleOCRVLTask,
+    paddle_ocr_vl_quantized::PaddleOCRVLQuantized,
+    pp_ocr_v6::{
+        det::{PPOCRV6MediumDet, TextDetection},
+        rec::PPOCRV6MediumRec,
+    },
 };
 use koharu_scene::{
     At, Authored, EntityId, Geometry, LanguageTag, OcrAnalysis, Origin, Presents, RecognizedFrom,
@@ -40,6 +47,7 @@ impl StageProcessor for Processor {
             OcrModel::BaberuOcr => "baberu-ocr",
             OcrModel::HayaiOcr => "hayai-ocr",
             OcrModel::PaddleOcrVl1_6 => "paddleocr-vl-1.6",
+            OcrModel::PpOcrV6 => "pp-ocr-v6",
         }
     }
 
@@ -69,6 +77,10 @@ enum Model {
     Baberu(Arc<Mutex<BaberuOcr>>),
     Hayai(Arc<Mutex<HayaiOcr>>),
     Paddle(Arc<Mutex<PaddleOCRVLQuantized>>),
+    PpOcrV6 {
+        det: Arc<Mutex<PPOCRV6MediumDet>>,
+        rec: Arc<Mutex<PPOCRV6MediumRec>>,
+    },
 }
 
 impl Model {
@@ -86,6 +98,10 @@ impl Model {
             OcrModel::PaddleOcrVl1_6 => Ok(Self::Paddle(Arc::new(Mutex::new(
                 PaddleOCRVLQuantized::load(device).await?,
             )))),
+            OcrModel::PpOcrV6 => Ok(Self::PpOcrV6 {
+                det: Arc::new(Mutex::new(PPOCRV6MediumDet::load(device.clone()).await?)),
+                rec: Arc::new(Mutex::new(PPOCRV6MediumRec::load(device).await?)),
+            }),
         }
     }
 
@@ -95,6 +111,7 @@ impl Model {
             Self::Baberu(_) => "baberu-ocr",
             Self::Hayai(_) => "hayai-ocr",
             Self::Paddle(_) => "paddleocr-vl-1.6",
+            Self::PpOcrV6 { .. } => "pp-ocr-v6",
         };
         let page = input.page;
         let mut targets = Vec::new();
@@ -208,6 +225,9 @@ impl Model {
                 })
                 .await?
             }
+            Self::PpOcrV6 { det, rec } => {
+                infer_pp_ocr_v6_targets(det.clone(), rec.clone(), targets).await?
+            }
         };
 
         let generation = generation(PRODUCER, model_name)?;
@@ -310,6 +330,127 @@ async fn infer_text<M: Send + 'static>(
             .collect()
     })
     .await
+}
+
+async fn infer_pp_ocr_v6_targets(
+    det: Arc<Mutex<PPOCRV6MediumDet>>,
+    rec: Arc<Mutex<PPOCRV6MediumRec>>,
+    targets: Vec<OcrTarget>,
+) -> Result<Vec<OcrResult>> {
+    tokio_rayon::spawn(move || {
+        let det = det
+            .lock()
+            .map_err(|_| anyhow!("PP-OCRv6 detection lock is poisoned"))?;
+        let rec = rec
+            .lock()
+            .map_err(|_| anyhow!("PP-OCRv6 recognition lock is poisoned"))?;
+        targets
+            .into_iter()
+            .map(|target| {
+                Ok(OcrResult {
+                    content: target.content,
+                    region: target.region,
+                    geometry: target.geometry,
+                    previous: target.previous,
+                    text: normalize_ocr_text(infer_pp_ocr_v6(&det, &rec, &target.image)?),
+                })
+            })
+            .collect()
+    })
+    .await
+}
+
+fn infer_pp_ocr_v6(
+    det: &PPOCRV6MediumDet,
+    rec: &PPOCRV6MediumRec,
+    image: &DynamicImage,
+) -> Result<String> {
+    const PAD: u32 = 12;
+    let rgb = image.to_rgb8();
+    let mut padded_rgb = RgbImage::from_pixel(
+        rgb.width().saturating_add(PAD * 2),
+        rgb.height().saturating_add(PAD * 2),
+        Rgb([255, 255, 255]),
+    );
+    imageops::replace(&mut padded_rgb, &rgb, i64::from(PAD), i64::from(PAD));
+    let padded = DynamicImage::ImageRgb8(padded_rgb);
+
+    let detections = det.inference(&padded)?.detections;
+    let mut line_boxes = extract_pp_ocr_boxes(&detections, padded.width(), padded.height());
+    if line_boxes.is_empty() {
+        let oriented = orient_line_crop(image);
+        return Ok(rec.inference(&oriented)?.text);
+    }
+
+    sort_pp_ocr_boxes(&mut line_boxes);
+    let mut lines = Vec::with_capacity(line_boxes.len());
+    for [x, y, width, height] in line_boxes {
+        let crop = padded.crop_imm(x, y, width, height);
+        let oriented = orient_line_crop(&crop);
+        let recognized = rec.inference(&oriented)?.text;
+        let trimmed = recognized.trim();
+        if !trimmed.is_empty() {
+            lines.push(trimmed.to_owned());
+        }
+    }
+    Ok(lines.join("\n"))
+}
+
+fn extract_pp_ocr_boxes(detections: &[TextDetection], width: u32, height: u32) -> Vec<[u32; 4]> {
+    detections
+        .iter()
+        .filter(|detection| detection.score >= 0.3)
+        .filter_map(|detection| {
+            let mut min_x = f32::INFINITY;
+            let mut min_y = f32::INFINITY;
+            let mut max_x = f32::NEG_INFINITY;
+            let mut max_y = f32::NEG_INFINITY;
+            for [x, y] in detection.polygon {
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+            }
+            let left = (min_x.floor() - 2.0).max(0.0) as u32;
+            let top = (min_y.floor() - 2.0).max(0.0) as u32;
+            let right = (max_x.ceil() + 2.0).max(0.0).min(width as f32) as u32;
+            let bottom = (max_y.ceil() + 2.0).max(0.0).min(height as f32) as u32;
+            (right > left && bottom > top).then_some([left, top, right - left, bottom - top])
+        })
+        .collect()
+}
+
+fn sort_pp_ocr_boxes(boxes: &mut [[u32; 4]]) {
+    let vertical_count = boxes
+        .iter()
+        .filter(|&&[_, _, width, height]| height as f32 > width as f32 * 1.4)
+        .count();
+    let vertical_majority = vertical_count * 2 > boxes.len();
+    if vertical_majority {
+        boxes.sort_by(|left, right| {
+            let left_cx = left[0] as f32 + left[2] as f32 * 0.5;
+            let right_cx = right[0] as f32 + right[2] as f32 * 0.5;
+            right_cx
+                .total_cmp(&left_cx)
+                .then_with(|| left[1].cmp(&right[1]))
+        });
+    } else {
+        boxes.sort_by(|left, right| {
+            let left_cy = left[1] as f32 + left[3] as f32 * 0.5;
+            let right_cy = right[1] as f32 + right[3] as f32 * 0.5;
+            left_cy
+                .total_cmp(&right_cy)
+                .then_with(|| left[0].cmp(&right[0]))
+        });
+    }
+}
+
+fn orient_line_crop(image: &DynamicImage) -> DynamicImage {
+    if image.height() as f32 > image.width() as f32 * 1.4 {
+        DynamicImage::ImageRgb8(imageops::rotate270(&image.to_rgb8()))
+    } else {
+        image.clone()
+    }
 }
 
 // Manga OCR can emit replacement-box glyphs for an isolated Japanese ellipsis.
@@ -421,5 +562,16 @@ mod tests {
             normalize_ocr_text("あ：あなた？".to_owned()),
             "あ：あなた？"
         );
+    }
+
+    #[test]
+    fn pp_ocr_line_sorting_and_vertical_rotation_follow_reading_order() {
+        let mut vertical = [[10, 20, 24, 120], [80, 20, 24, 120], [45, 20, 24, 120]];
+        super::sort_pp_ocr_boxes(&mut vertical);
+        assert_eq!(vertical.map(|item| item[0]), [80, 45, 10]);
+
+        let tall = image::DynamicImage::new_rgb8(20, 80);
+        let oriented = super::orient_line_crop(&tall);
+        assert_eq!((oriented.width(), oriented.height()), (80, 20));
     }
 }

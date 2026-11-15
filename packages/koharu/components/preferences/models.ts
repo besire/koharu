@@ -12,13 +12,14 @@ export type ModelName = PipelineModel['model']
 
 export const modelOptions = {
   detection: ['koharu-layout-rfdetr-seg-2xl'],
-  ocr: ['paddleocr-vl-1.6', 'manga-ocr', 'baberu-ocr', 'hayai-ocr'],
+  ocr: ['paddleocr-vl-1.6', 'pp-ocr-v6', 'manga-ocr', 'baberu-ocr', 'hayai-ocr'],
   inpainting: ['lama', 'aot-inpainting', 'flux2-klein', 'rorem-mixed'],
 } satisfies Record<ModelStage, ModelName[]>
 
 export const modelNames: Record<ModelName, string> = {
   'koharu-layout-rfdetr-seg-2xl': 'Koharu Layout RF-DETR Seg 2XL',
   'paddleocr-vl-1.6': 'PaddleOCR-VL 1.6',
+  'pp-ocr-v6': 'PP-OCRv6',
   'manga-ocr': 'Manga OCR',
   'baberu-ocr': 'Baberu OCR',
   'hayai-ocr': 'Hayai OCR',
@@ -31,8 +32,17 @@ export const modelNames: Record<ModelName, string> = {
 export function defaultModel(model: ModelName): PipelineModel {
   switch (model) {
     case 'koharu-layout-rfdetr-seg-2xl':
-      return { model, text_threshold: null, bubble_threshold: null, panel_threshold: null }
+      return {
+        model,
+        text_threshold: null,
+        bubble_threshold: null,
+        panel_threshold: null,
+        onomatopoeia_threshold: null,
+        include_onomatopoeia: false,
+        detect_font_style: false,
+      }
     case 'paddleocr-vl-1.6':
+    case 'pp-ocr-v6':
     case 'manga-ocr':
     case 'baberu-ocr':
     case 'hayai-ocr':
@@ -74,6 +84,9 @@ export function replaceStage(
                   text_threshold: model.text_threshold ?? null,
                   bubble_threshold: model.bubble_threshold ?? null,
                   panel_threshold: model.panel_threshold ?? null,
+                  onomatopoeia_threshold: model.onomatopoeia_threshold ?? null,
+                  include_onomatopoeia: model.include_onomatopoeia ?? false,
+                  detect_font_style: model.detect_font_style ?? false,
                 }
               : (config.processor?.['koharu-layout-rfdetr-seg-2xl'] ?? null),
         },

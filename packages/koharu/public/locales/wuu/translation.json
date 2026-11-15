@@ -11,10 +11,14 @@
     "downloadingFiles": "来勒下载 {{count}} 个文件",
     "downloadingFiles_one": "来勒下载 {{count}} 个文件",
     "downloadingFiles_other": "来勒下载 {{count}} 个文件",
+    "failedPagesCount": "{{count}} 页处理失败",
+    "failedPagesCount_one": "{{count}} 页处理失败",
+    "failedPagesCount_other": "{{count}} 页处理失败",
     "modelDownload": "模型下载",
     "pageLabel": "第 {{number}} 页：{{label}}",
     "processing": "来勒处理",
     "processingFailed": "处理失败哉。",
+    "retryFailedPages": "重试失败页面",
     "stop": "停止",
     "title": "活动"
   },
@@ -62,10 +66,10 @@
   "colorPicker": {
     "brushColor": "笔刷颜色",
     "hexCode": "十六进制颜色代码",
-    "sampleCanvas": "从画布浪取颜色",
-    "transparent": "透明",
     "recent": "最近用过个颜色",
-    "recentColor": "最近用过个颜色 {{color}}"
+    "recentColor": "最近用过个颜色 {{color}}",
+    "sampleCanvas": "从画布浪取颜色",
+    "transparent": "透明"
   },
   "common": {
     "back": "返回",
@@ -88,6 +92,8 @@
     "allStyles": "全部样式",
     "choose": "选字体",
     "clearFilters": "清除筛选条件",
+    "favoriteFont": "收藏 {{family}}",
+    "favoritesOnly": "只看收藏字体",
     "filter": "筛选字体",
     "filterActiveLabel": "筛选字体，当前启用个筛选条件有 {{count}} 个",
     "fontCount": "{{count}} 种字体",
@@ -123,7 +129,8 @@
       "bundled": "内置",
       "system": "系统"
     },
-    "style": "样式"
+    "style": "样式",
+    "unfavoriteFont": "取消收藏 {{family}}"
   },
   "inference": {
     "currentPage": "当前页面",
@@ -175,6 +182,8 @@
     "color": "颜色",
     "customFrame": "自定义文本框",
     "decreaseBorderWidth": "拿描边调细点",
+    "decreaseLetterSpacing": "放小字距",
+    "decreaseLineHeight": "放小行高",
     "direction": "方向",
     "font": "字体",
     "fontSize": "字体大小",
@@ -187,6 +196,10 @@
     "fontWeight": "字体粗细",
     "horizontal": "横排",
     "increaseBorderWidth": "拿描边调粗点",
+    "increaseLetterSpacing": "放大字距",
+    "increaseLineHeight": "放大行高",
+    "letterSpacing": "字距",
+    "lineHeight": "行高",
     "opacity": "不透明度",
     "placement": "位置",
     "resetAutoFit": "重置成自动适配",
@@ -197,6 +210,8 @@
     "textColor": "文本颜色",
     "textDirection": "文本方向",
     "translation": "译文",
+    "translationNote": "翻译备注",
+    "translationNotePlaceholder": "讲闲话个人、口气或者上下文说明",
     "type": "排版",
     "unplaced": "还呒没放置",
     "vertical": "竖排",
@@ -218,6 +233,8 @@
     "zh-TW": "繁體中文"
   },
   "layers": {
+    "copySource": "复制 {{name}} 个原文",
+    "copyTranslation": "复制 {{name}} 个译文",
     "delete": "删除 {{name}}",
     "edit": "编辑 {{name}}",
     "empty": "箇页浪呒没图层。",
@@ -237,16 +254,21 @@
     "lockedLabel": "{{name}} 锁牢",
     "moveDown": "拿 {{name}} 移下去一格",
     "moveUp": "拿 {{name}} 移上去一格",
+    "ocr": "对 {{name}} 运行 OCR",
+    "ocrBlocked": "呒没运行 OCR",
+    "ocrRequiresEmptySource": "运行 OCR 之前请先清空源文本。",
     "opacityLabel": "{{name}} 个不透明度",
     "originalArtwork": "原始图稿",
     "show": "显示 {{name}}",
     "sourceLabel": "{{name}} 个原文",
     "textName": "文本 {{index}}",
     "title": "图层",
+    "translate": "翻译 {{name}}",
+    "translateAction": "翻译",
+    "translateBlocked": "勿曾翻译",
+    "translateRequiresSource": "请先填好原文或者跑好 OCR 再翻译。",
     "translationLabel": "{{name}} 个译文",
-    "ocr": "对 {{name}} 运行 OCR",
-    "ocrBlocked": "呒没运行 OCR",
-    "ocrRequiresEmptySource": "运行 OCR 之前请先清空源文本。"
+    "translationNoteLabel": "{{name}} 翻译备注"
   },
   "menu": {
     "about": "关于",
@@ -311,9 +333,9 @@
   "outputPicker": {
     "instructions": "翻译说明",
     "instructionsPlaceholder": "好填语气、名字搭格式个说明，也好弗填。",
+    "loadPreset": "加载预设",
     "targetLanguage": "目标语言",
-    "title": "翻译输出",
-    "loadPreset": "加载预设"
+    "title": "翻译输出"
   },
   "phase": {
     "detection": "检测",
@@ -375,12 +397,12 @@
       "maxTokens": "最大令牌数",
       "minP": "Min P",
       "presencePenalty": "存在惩罚",
+      "reasoning": "推理",
+      "reasoningDescription": "翻译个辰光用模型推理。",
       "repeatPenalty": "重复惩罚",
       "sampling": "采样",
       "samplingDescription": "调整模型选词个方式，控制生成个文本有多少变化。",
       "temperature": "温度",
-      "reasoning": "推理",
-      "reasoningDescription": "翻译个辰光用模型推理。",
       "title": "生成",
       "topK": "Top K",
       "topP": "Top P",
@@ -393,7 +415,12 @@
       "modelLabel": "{{stage}}模型",
       "options": {
         "bubbleThreshold": "气泡阈值",
+        "detectFontStyle": "自动识别衬线/黑体风格",
+        "detectFontStyleDescription": "版面检测辰光识别原文是衬线体还是黑体。",
+        "includeOnomatopoeia": "包含拟声词（SFX）",
+        "includeOnomatopoeiaDescription": "帮拟声词建立文字图层搭修补蒙版。",
         "negativePrompt": "负面提示词",
+        "onomatopoeiaThreshold": "拟声词阈值",
         "panelThreshold": "分镜阈值",
         "prompt": "提示词",
         "textThreshold": "文本阈值"
@@ -424,13 +451,13 @@
       "credentialLabel": "{{provider}} 个凭据",
       "description": "连接提供翻译服务搭语言模型个提供商。",
       "notConfigured": "还呒没配置",
-      "title": "提供商",
       "structuredOutput": "结构化输出",
       "structuredOutputModes": {
-        "json_schema": "JSON 架构",
+        "disabled": "禁用",
         "json_object": "JSON 对象",
-        "disabled": "禁用"
-      }
+        "json_schema": "JSON 架构"
+      },
+      "title": "提供商"
     },
     "shortcuts": {
       "description": "文本框呒没焦点个辰光，就好用单键快捷键。",
@@ -448,31 +475,40 @@
     },
     "title": "设置",
     "translation": {
+      "addGlossaryEntry": "添加术语词条",
+      "deletePreset": "删脱预设",
       "description": "先选已经配置好个提供商底下个模型，再设置各个模型共用个翻译搭生成选项。",
+      "glossary": "术语表",
+      "glossaryDescription": "跨页固定人名搭常用词译法。",
+      "glossarySource": "原文词条",
+      "glossarySourcePlaceholder": "原文名字或者术语",
+      "glossaryTarget": "目标译法",
+      "glossaryTargetPlaceholder": "固定译法",
       "instructionsDescription": "名字、语气、术语或者格式个说明。",
       "instructionsLabel": "翻译说明",
       "instructionsPlaceholder": "好填整个项目通用个说明，也好弗填",
       "model": "模型",
       "modelDescription": "提供商标签标明各个模型来勒啥地方运行；连接要另外配置。",
       "modelQuantization": "模型量化",
+      "noPresets": "还呒没保存过个预设",
       "output": "输出",
+      "presetName": "预设名字",
+      "presetNamePlaceholder": "帮当前说明起个名字",
+      "presetsDescription": "拿当前说明存成有名字个预设，过后好再加载。",
       "quantization": "量化",
       "quantizationDescription": "体积小点个格式，占用个内存少点，通常会有质量损失。",
+      "removeGlossaryEntry": "删脱 {{source}}",
+      "savePreset": "保存",
+      "savedPresets": "保存好个预设",
       "selectQuantization": "选量化方式",
       "targetLanguageDescription": "选译文要用个目标语言。",
       "title": "译文",
       "translationModel": "翻译模型",
-      "translationModelDescription": "选用来翻译文本个模型。",
-      "deletePreset": "删脱预设",
-      "noPresets": "还呒没保存过个预设",
-      "presetName": "预设名字",
-      "presetNamePlaceholder": "帮当前说明起个名字",
-      "presetsDescription": "拿当前说明存成有名字个预设，过后好再加载。",
-      "savePreset": "保存",
-      "savedPresets": "保存好个预设"
+      "translationModelDescription": "选用来翻译文本个模型。"
     },
     "typesetting": {
       "addFamily": "添加字体系列",
+      "clearSerifFont": "清除衬线字体",
       "defaultFamilies": "默认字体系列",
       "description": "设定字体系列个使用次序。文本图层呒没指定字体系列个辰光，就照箇个次序选用字体。",
       "empty": "呒没默认字体系列。Koharu 会用系统后备字体。",
@@ -482,6 +518,9 @@
       "loadError": "字体加载失败哉。列表里向原有个字体系列还是好移除。",
       "loadingFonts": "来勒加载字体…",
       "removeFamily": "从列表里向移除 {{family}}",
+      "serifFont": "自动衬线字体",
+      "serifFontDescription": "识别到原文是衬线体辰光，排勒默认字体栈前头用。",
+      "serifFontNone": "用默认字体栈",
       "title": "排版"
     }
   },
@@ -524,6 +563,7 @@
     "decreaseBrushSize": "拿笔刷调小点",
     "draw": "笔刷",
     "eraser": "橡皮擦",
+    "eraserRequiresRasterLayer": "用橡皮擦之前请先拣一个涂绘或者清理图层。",
     "increaseBrushSize": "拿笔刷调大点",
     "pan": "平移",
     "remove": "移除",

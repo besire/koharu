@@ -11,10 +11,14 @@
     "downloadingFiles": "Téléchargement de {{count}} fichiers",
     "downloadingFiles_one": "Téléchargement de {{count}} fichier",
     "downloadingFiles_other": "Téléchargement de {{count}} fichiers",
+    "failedPagesCount": "{{count}} pages ont échoué",
+    "failedPagesCount_one": "{{count}} page a échoué",
+    "failedPagesCount_other": "{{count}} pages ont échoué",
     "modelDownload": "Téléchargement du modèle",
     "pageLabel": "Page {{number}} : {{label}}",
     "processing": "Traitement",
     "processingFailed": "Échec du traitement.",
+    "retryFailedPages": "Réessayer les pages en échec",
     "stop": "Arrêter",
     "title": "Activité"
   },
@@ -62,10 +66,10 @@
   "colorPicker": {
     "brushColor": "Couleur du pinceau",
     "hexCode": "Code couleur hexadécimal",
-    "sampleCanvas": "Prélever une couleur sur le canevas",
-    "transparent": "Transparent",
     "recent": "Couleurs récentes",
-    "recentColor": "Couleur récente {{color}}"
+    "recentColor": "Couleur récente {{color}}",
+    "sampleCanvas": "Prélever une couleur sur le canevas",
+    "transparent": "Transparent"
   },
   "common": {
     "back": "Retour",
@@ -88,6 +92,8 @@
     "allStyles": "Tous les styles",
     "choose": "Choisir une police",
     "clearFilters": "Effacer les filtres",
+    "favoriteFont": "Ajouter {{family}} aux favoris",
+    "favoritesOnly": "Polices favorites uniquement",
     "filter": "Filtrer les polices",
     "filterActiveLabel": "Filtrer les polices, {{count}} actif(s)",
     "fontCount": "{{count}} polices",
@@ -123,7 +129,8 @@
       "bundled": "Intégrées",
       "system": "Système"
     },
-    "style": "Style"
+    "style": "Style",
+    "unfavoriteFont": "Retirer {{family}} des favoris"
   },
   "inference": {
     "currentPage": "Page actuelle",
@@ -175,6 +182,8 @@
     "color": "Couleur",
     "customFrame": "Cadre personnalisé",
     "decreaseBorderWidth": "Réduire l’épaisseur du contour",
+    "decreaseLetterSpacing": "Réduire l’approche",
+    "decreaseLineHeight": "Réduire l’interligne",
     "direction": "Direction",
     "font": "Police",
     "fontSize": "Taille de police",
@@ -187,6 +196,10 @@
     "fontWeight": "Graisse",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Augmenter l’épaisseur du contour",
+    "increaseLetterSpacing": "Augmenter l’approche",
+    "increaseLineHeight": "Augmenter l’interligne",
+    "letterSpacing": "Approche",
+    "lineHeight": "Interligne",
     "opacity": "Opacité",
     "placement": "Positionnement",
     "resetAutoFit": "Rétablir l’ajustement auto",
@@ -197,6 +210,8 @@
     "textColor": "Couleur du texte",
     "textDirection": "Sens du texte",
     "translation": "Traduction",
+    "translationNote": "Note de traduction",
+    "translationNotePlaceholder": "Locuteur, ton ou contexte pour cette réplique",
     "type": "Type",
     "unplaced": "Non placé",
     "vertical": "Vertical",
@@ -218,6 +233,8 @@
     "zh-TW": "繁體中文"
   },
   "layers": {
+    "copySource": "Copier le texte source de {{name}}",
+    "copyTranslation": "Copier la traduction de {{name}}",
     "delete": "Supprimer {{name}}",
     "edit": "Modifier {{name}}",
     "empty": "Aucun calque sur cette page.",
@@ -237,16 +254,21 @@
     "lockedLabel": "{{name}} est verrouillé",
     "moveDown": "Descendre {{name}}",
     "moveUp": "Monter {{name}}",
+    "ocr": "Exécuter l'OCR pour {{name}}",
+    "ocrBlocked": "OCR non exécuté",
+    "ocrRequiresEmptySource": "Effacez le texte source avant de lancer l'OCR.",
     "opacityLabel": "Opacité de {{name}}",
     "originalArtwork": "Image originale",
     "show": "Afficher {{name}}",
     "sourceLabel": "Texte source de {{name}}",
     "textName": "Texte {{index}}",
     "title": "Calques",
+    "translate": "Traduire {{name}}",
+    "translateAction": "Traduire",
+    "translateBlocked": "Traduction non lancée",
+    "translateRequiresSource": "Saisissez un texte source ou lancez l’OCR avant de traduire.",
     "translationLabel": "Traduction de {{name}}",
-    "ocr": "Exécuter l'OCR pour {{name}}",
-    "ocrBlocked": "OCR non exécuté",
-    "ocrRequiresEmptySource": "Effacez le texte source avant de lancer l'OCR."
+    "translationNoteLabel": "Note de traduction de {{name}}"
   },
   "menu": {
     "about": "À propos",
@@ -311,9 +333,9 @@
   "outputPicker": {
     "instructions": "Instructions de traduction",
     "instructionsPlaceholder": "Indications facultatives sur le ton, les noms et la mise en forme.",
+    "loadPreset": "Charger un préréglage",
     "targetLanguage": "Langue cible",
-    "title": "Sortie de traduction",
-    "loadPreset": "Charger un préréglage"
+    "title": "Sortie de traduction"
   },
   "phase": {
     "detection": "Détection",
@@ -375,12 +397,12 @@
       "maxTokens": "Nombre maximal de tokens",
       "minP": "Min P",
       "presencePenalty": "Pénalité de présence",
+      "reasoning": "Raisonnement",
+      "reasoningDescription": "Utiliser le raisonnement du modèle pendant la traduction.",
       "repeatPenalty": "Pénalité de répétition",
       "sampling": "Échantillonnage",
       "samplingDescription": "Contrôlez la façon dont le modèle choisit et varie le texte généré.",
       "temperature": "Température",
-      "reasoning": "Raisonnement",
-      "reasoningDescription": "Utiliser le raisonnement du modèle pendant la traduction.",
       "title": "Génération",
       "topK": "Top K",
       "topP": "Top P",
@@ -393,7 +415,12 @@
       "modelLabel": "Modèle de {{stage}}",
       "options": {
         "bubbleThreshold": "Seuil des bulles",
+        "detectFontStyle": "Adapter le style serif source",
+        "detectFontStyleDescription": "Détecte si le texte source est avec ou sans empattements lors de l’analyse.",
+        "includeOnomatopoeia": "Inclure les onomatopées (SFX)",
+        "includeOnomatopoeiaDescription": "Crée des calques de texte et des masques de retouche pour les onomatopées.",
         "negativePrompt": "Prompt négatif",
+        "onomatopoeiaThreshold": "Seuil SFX",
         "panelThreshold": "Seuil des cases",
         "prompt": "Prompt",
         "textThreshold": "Seuil du texte"
@@ -424,13 +451,13 @@
       "credentialLabel": "Identifiants {{provider}}",
       "description": "Connectez des fournisseurs de traduction et de modèles de langage.",
       "notConfigured": "Non configuré",
-      "title": "Fournisseurs",
       "structuredOutput": "Sortie structurée",
       "structuredOutputModes": {
-        "json_schema": "Schéma JSON",
+        "disabled": "Désactivé",
         "json_object": "Objet JSON",
-        "disabled": "Désactivé"
-      }
+        "json_schema": "Schéma JSON"
+      },
+      "title": "Fournisseurs"
     },
     "shortcuts": {
       "description": "Les raccourcis à une touche sont disponibles lorsqu’aucun champ de texte n’a le focus.",
@@ -448,31 +475,40 @@
     },
     "title": "Paramètres",
     "translation": {
+      "addGlossaryEntry": "Ajouter une entrée au glossaire",
+      "deletePreset": "Supprimer le préréglage",
       "description": "Choisissez le modèle de n’importe quel fournisseur configuré, puis appliquez un ensemble commun d’options de traduction et de génération.",
+      "glossary": "Glossaire",
+      "glossaryDescription": "Fixez les noms de personnages et les termes récurrents sur toutes les pages.",
+      "glossarySource": "Terme source",
+      "glossarySourcePlaceholder": "Terme original",
+      "glossaryTarget": "Terme traduit",
+      "glossaryTargetPlaceholder": "Traduction souhaitée",
       "instructionsDescription": "Indications sur les noms, le ton, la terminologie ou la mise en forme.",
       "instructionsLabel": "Instructions de traduction",
       "instructionsPlaceholder": "Indications facultatives pour tout le projet",
       "model": "Modèle",
       "modelDescription": "Les libellés de fournisseur indiquent où chaque modèle s’exécute ; les connexions se configurent séparément.",
       "modelQuantization": "Quantification du modèle",
+      "noPresets": "Aucun préréglage enregistré",
       "output": "Sortie",
+      "presetName": "Nom du préréglage",
+      "presetNamePlaceholder": "Nom pour les instructions actuelles",
+      "presetsDescription": "Enregistrez les instructions actuelles sous un nom pour les recharger plus tard.",
       "quantization": "Quantification",
       "quantizationDescription": "Les formats plus compacts utilisent moins de mémoire, généralement au détriment de la qualité.",
+      "removeGlossaryEntry": "Supprimer {{source}}",
+      "savePreset": "Enregistrer",
+      "savedPresets": "Préréglages enregistrés",
       "selectQuantization": "Sélectionner une quantification",
       "targetLanguageDescription": "Choisissez la langue dans laquelle traduire le texte.",
       "title": "Traduction",
       "translationModel": "Modèle de traduction",
-      "translationModelDescription": "Choisissez le modèle utilisé pour traduire le texte.",
-      "deletePreset": "Supprimer le préréglage",
-      "noPresets": "Aucun préréglage enregistré",
-      "presetName": "Nom du préréglage",
-      "presetNamePlaceholder": "Nom pour les instructions actuelles",
-      "presetsDescription": "Enregistrez les instructions actuelles sous un nom pour les recharger plus tard.",
-      "savePreset": "Enregistrer",
-      "savedPresets": "Préréglages enregistrés"
+      "translationModelDescription": "Choisissez le modèle utilisé pour traduire le texte."
     },
     "typesetting": {
       "addFamily": "Ajouter une famille de polices",
+      "clearSerifFont": "Effacer la police serif",
       "defaultFamilies": "Familles de polices par défaut",
       "description": "Définissez la liste ordonnée de polices utilisée lorsqu’aucune famille n’est attribuée à un calque de texte.",
       "empty": "Aucune famille par défaut. Koharu utilisera la police de secours du système.",
@@ -482,6 +518,9 @@
       "loadError": "Impossible de charger les polices. Les familles existantes peuvent toujours être supprimées.",
       "loadingFonts": "Chargement des polices…",
       "removeFamily": "Retirer {{family}}",
+      "serifFont": "Police serif automatique",
+      "serifFontDescription": "Utilisée avant la pile par défaut lorsque le texte source est détecté avec empattements.",
+      "serifFontNone": "Utiliser la pile par défaut",
       "title": "Lettrage"
     }
   },
@@ -524,6 +563,7 @@
     "decreaseBrushSize": "Réduire la taille du pinceau",
     "draw": "Pinceau",
     "eraser": "Gomme",
+    "eraserRequiresRasterLayer": "Sélectionnez un calque de peinture ou de nettoyage avant d’utiliser la gomme.",
     "increaseBrushSize": "Augmenter la taille du pinceau",
     "pan": "Déplacer",
     "remove": "Retirer",
