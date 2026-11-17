@@ -45,6 +45,7 @@
   "colorPicker": {
     "brushColor": "Цвет кисти",
     "hexCode": "Шестнадцатеричный код цвета",
+    "recent": "Недавние цвета",
     "sampleCanvas": "Выбрать цвет с холста",
     "transparent": "Прозрачный"
   },
@@ -84,12 +85,14 @@
   },
   "fontPicker": {
     "choose": "Выбрать шрифт",
+    "favorite": "Закрепить {{family}}",
     "fontCount": "Шрифтов: {{count}}",
     "fontCount_one": "Шрифт: {{count}}",
     "fontCount_other": "Шрифтов: {{count}}",
     "fonts": "Шрифты",
     "noResults": "Нет шрифтов, соответствующих поиску",
-    "search": "Искать шрифты"
+    "search": "Искать шрифты",
+    "unfavorite": "Открепить {{family}}"
   },
   "history": {
     "close": "Закрыть историю",
@@ -167,6 +170,8 @@
     "borderWidth": "Ширина обводки",
     "chooseFontSize": "Выбрать размер шрифта",
     "decreaseBorderWidth": "Уменьшить ширину обводки",
+    "decreaseLetterSpacing": "Уменьшить межбуквенный интервал",
+    "decreaseLineHeight": "Уменьшить межстрочный интервал",
     "font": "Шрифт",
     "fontSize": "Размер шрифта",
     "fontStyles": {
@@ -176,9 +181,16 @@
     "fontWeight": "Насыщенность шрифта",
     "horizontal": "Горизонтально",
     "increaseBorderWidth": "Увеличить ширину обводки",
+    "increaseLetterSpacing": "Увеличить межбуквенный интервал",
+    "increaseLineHeight": "Увеличить межстрочный интервал",
+    "letterSpacing": "Трекинг",
+    "lineHeight": "Интерлиньяж",
+    "notePlaceholder": "Контекст или указания для перевода этого блока…",
     "opacity": "Непрозрачность",
+    "runOcr": "Запустить OCR",
     "selectPage": "Выберите страницу для просмотра её слоёв.",
     "source": "Исходный текст",
+    "spacing": "Интерлиньяж и трекинг",
     "text": "Текст",
     "textColor": "Цвет текста",
     "textDirection": "Направление текста",
@@ -218,6 +230,7 @@
     },
     "lock": "Заблокировать {{name}}",
     "locked": "Заблокировано",
+    "noteLabel": "Заметка переводчика для {{name}}",
     "opacityLabel": "Непрозрачность {{name}}",
     "parts": {
       "cleanup": "Очистка",
@@ -260,8 +273,10 @@
     "view": "Вид"
   },
   "model": {
+    "autoDetect": "Автоопределение",
     "baseUrl": "Базовый URL",
     "default": "По умолчанию",
+    "sourceLanguage": "Исходный язык",
     "targetLanguage": "Язык перевода"
   },
   "modelPicker": {
@@ -290,6 +305,7 @@
     "selected": "Выбрано: {{count}}"
   },
   "outputPicker": {
+    "sourceLanguage": "Исходный язык",
     "targetLanguage": "Язык перевода",
     "title": "Вывод перевода"
   },
@@ -367,10 +383,22 @@
       "thresholds": "Пороги",
       "title": "Конвейер",
       "translator": {
+        "addTerm": "Добавить термин",
+        "deletePreset": "Удалить пресет",
+        "glossary": "Глоссарий",
+        "glossaryDescription": "Сохраняйте единообразие имён персонажей и повторяющихся терминов.",
+        "glossaryNote": "Примечание (необязательно)",
+        "glossarySource": "Исходный термин",
+        "glossaryTarget": "Перевод",
         "instructions": "Дополнительные инструкции",
         "instructionsDescription": "Необязательно, на любом языке и в любой форме, например написание имени или тон. Koharu добавляет их как есть после своего системного промпта.",
+        "presetName": "Название пресета",
+        "presets": "Сохранённые пресеты",
         "reasoning": "Рассуждение",
         "reasoningDescription": "Использует рассуждение модели во время перевода.",
+        "removeTerm": "Удалить термин",
+        "savePreset": "Сохранить пресет",
+        "sourceLanguageDescription": "При необходимости переопределяет автоопределение исходного языка.",
         "targetLanguageDescription": "Выберите язык, на который нужно перевести текст.",
         "vision": "Изображения",
         "visionDescription": "Передаёт изображения страниц языковой модели во время перевода."

@@ -45,6 +45,7 @@
   "colorPicker": {
     "brushColor": "Fırça rengi",
     "hexCode": "Onaltılık renk kodu",
+    "recent": "Son kullanılan renkler",
     "sampleCanvas": "Tuvalden renk seç",
     "transparent": "Şeffaf"
   },
@@ -84,12 +85,14 @@
   },
   "fontPicker": {
     "choose": "Yazı tipi seç",
+    "favorite": "{{family}} yazı tipini sabitle",
     "fontCount": "{{count}} yazı tipi",
     "fontCount_one": "{{count}} yazı tipi",
     "fontCount_other": "{{count}} yazı tipi",
     "fonts": "Yazı tipleri",
     "noResults": "Bu aramayla eşleşen yazı tipi yok",
-    "search": "Yazı tipi ara"
+    "search": "Yazı tipi ara",
+    "unfavorite": "{{family}} sabitlemesini kaldır"
   },
   "history": {
     "close": "Geçmişi kapat",
@@ -167,6 +170,8 @@
     "borderWidth": "Kenarlık genişliği",
     "chooseFontSize": "Yazı tipi boyutunu seç",
     "decreaseBorderWidth": "Kenarlık genişliğini azalt",
+    "decreaseLetterSpacing": "Harf aralığını azalt",
+    "decreaseLineHeight": "Satır yüksekliğini azalt",
     "font": "Yazı tipi",
     "fontSize": "Yazı tipi boyutu",
     "fontStyles": {
@@ -176,9 +181,16 @@
     "fontWeight": "Yazı tipi kalınlığı",
     "horizontal": "Yatay",
     "increaseBorderWidth": "Kenarlık genişliğini artır",
+    "increaseLetterSpacing": "Harf aralığını artır",
+    "increaseLineHeight": "Satır yüksekliğini artır",
+    "letterSpacing": "Harf aralığı",
+    "lineHeight": "Satır aralığı",
+    "notePlaceholder": "Bu bloğun çevirisi için bağlam veya yönerge…",
     "opacity": "Opaklık",
+    "runOcr": "OCR çalıştır",
     "selectPage": "Katmanlarını incelemek için bir sayfa seçin.",
     "source": "Kaynak metin",
+    "spacing": "Satır ve harf aralığı",
     "text": "Metin",
     "textColor": "Metin rengi",
     "textDirection": "Metin yönü",
@@ -218,6 +230,7 @@
     },
     "lock": "{{name}} öğesini kilitle",
     "locked": "Kilitli",
+    "noteLabel": "{{name}} çeviri notu",
     "opacityLabel": "{{name}} opaklığı",
     "parts": {
       "cleanup": "Temizleme",
@@ -260,8 +273,10 @@
     "view": "Görünüm"
   },
   "model": {
+    "autoDetect": "Otomatik algıla",
     "baseUrl": "Temel URL",
     "default": "Varsayılan",
+    "sourceLanguage": "Kaynak dil",
     "targetLanguage": "Hedef dil"
   },
   "modelPicker": {
@@ -290,6 +305,7 @@
     "selected": "{{count}} seçili"
   },
   "outputPicker": {
+    "sourceLanguage": "Kaynak dil",
     "targetLanguage": "Hedef dil",
     "title": "Çeviri çıktısı"
   },
@@ -367,10 +383,22 @@
       "thresholds": "Eşikler",
       "title": "İşlem hattı",
       "translator": {
+        "addTerm": "Terim ekle",
+        "deletePreset": "Ön ayarı sil",
+        "glossary": "Sözlük",
+        "glossaryDescription": "Karakter adlarını ve yinelenen terimleri sayfalar arasında tutarlı tutun.",
+        "glossaryNote": "İsteğe bağlı not",
+        "glossarySource": "Kaynak terim",
+        "glossaryTarget": "Tercih edilen çeviri",
         "instructions": "Ek talimatlar",
         "instructionsDescription": "İsteğe bağlı, herhangi bir dilde ve biçimde; örneğin bir adın yazılışı ya da üslup. Koharu bunları kendi sistem isteminin ardından olduğu gibi ekler.",
+        "presetName": "Ön ayar adı",
+        "presets": "Kayıtlı ön ayarlar",
         "reasoning": "Akıl yürütme",
         "reasoningDescription": "Çeviri sırasında model akıl yürütmesini kullanır.",
+        "removeTerm": "Terimi kaldır",
+        "savePreset": "Ön ayarı kaydet",
+        "sourceLanguageDescription": "Gerektiğinde otomatik kaynak dil algılamasını geçersiz kılar.",
         "targetLanguageDescription": "Metnin çevrileceği dili seçin.",
         "vision": "Görsel",
         "visionDescription": "Çeviri sırasında sayfa görsellerini LLM'ye iletir."

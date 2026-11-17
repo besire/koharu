@@ -31,6 +31,8 @@ pub(crate) struct Type<'a> {
     /// on the right.
     pub rtl: bool,
     pub leading: f64,
+    /// Tracking in thousandths of an em, as Photoshop's `Tracking` stores it.
+    pub tracking: i32,
     pub vertical: bool,
     pub shape: Shape,
 }
@@ -124,7 +126,10 @@ pub(crate) fn encode(spec: &Type) -> Vec<u8> {
                                     .map(|run| {
                                         Dict(vec![(
                                             "StyleSheet",
-                                            Dict(vec![("StyleSheetData", style(run))]),
+                                            Dict(vec![(
+                                                "StyleSheetData",
+                                                style(run, spec.tracking),
+                                            )]),
                                         )])
                                     })
                                     .collect(),
@@ -255,8 +260,8 @@ fn paragraph(spec: &Type) -> Value {
     ])
 }
 
-fn style(run: &Run) -> Value {
-    Dict(vec![
+fn style(run: &Run, tracking: i32) -> Value {
+    let mut entries = vec![
         ("Font", Int(run.font as i32)),
         ("FontSize", Float(run.size)),
         ("FauxBold", Bool(false)),
@@ -264,8 +269,12 @@ fn style(run: &Run) -> Value {
         ("AutoLeading", Bool(true)),
         ("AutoKerning", Bool(true)),
         ("Kerning", Int(0)),
-        ("FillColor", color(run.fill)),
-    ])
+    ];
+    if tracking != 0 {
+        entries.push(("Tracking", Int(tracking)));
+    }
+    entries.push(("FillColor", color(run.fill)));
+    Dict(entries)
 }
 
 fn resources(fonts: &[String]) -> Value {
@@ -432,5 +441,34 @@ fn write(out: &mut Vec<u8>, value: &Value, indent: usize, in_property: bool) {
             out.extend(std::iter::repeat_n(b'\t', indent));
             out.extend_from_slice(b">>");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn non_zero_tracking_is_written_to_style_sheet_data() {
+        let fonts = vec!["AdobeInvisFont".to_owned(), "ArialMT".to_owned()];
+        let runs = vec![Run {
+            length: 3,
+            font: 1,
+            size: 16.0,
+            fill: [0.0, 0.0, 0.0, 1.0],
+        }];
+        let encoded = String::from_utf8_lossy(&encode(&Type {
+            text: "Hi\r",
+            runs: &runs,
+            fonts: &fonts,
+            align: Align::Center,
+            rtl: false,
+            leading: 1.2,
+            tracking: 150,
+            vertical: false,
+            shape: Shape::Point,
+        }))
+        .into_owned();
+        assert!(encoded.contains("/Tracking 150"));
     }
 }

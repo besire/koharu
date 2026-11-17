@@ -75,12 +75,9 @@ pub(crate) async fn recognize(task: &Task, config: &PipelineConfig) -> anyhow::R
             .apply(Stage::Recognize, move |project| {
                 let mut ops = Vec::new();
                 for (block, text) in texts {
-                    if !matches!(
-                        project.layer(block).map(|layer| &layer.content),
-                        Ok(Content::Block(_))
-                    ) {
+                    let Ok(layer) = project.layer(block) else {
                         continue;
-                    }
+                    };
                     let text = normalize_ocr_text(text);
                     let resolved = configured_source
                         .as_deref()
@@ -88,10 +85,25 @@ pub(crate) async fn recognize(task: &Task, config: &PipelineConfig) -> anyhow::R
                             "und" => infer_script_language(&text),
                             known => known,
                         });
-                    ops.push(koharu_scene::Op::UpdateLayer {
-                        layer: block.into(),
-                        patch: json!({"source": {"content": text, "language": resolved}}),
-                    });
+                    match &layer.content {
+                        Content::Block(_) => {
+                            ops.push(koharu_scene::Op::UpdateLayer {
+                                layer: block.into(),
+                                patch: json!({"source": {"content": text, "language": resolved}}),
+                            });
+                        }
+                        Content::Text(_) => {
+                            ops.push(koharu_scene::Op::SetText {
+                                layer: block.into(),
+                                text,
+                            });
+                            ops.push(koharu_scene::Op::UpdateLayer {
+                                layer: block.into(),
+                                patch: json!({"language": resolved}),
+                            });
+                        }
+                        _ => continue,
+                    }
                     ops.push(koharu_scene::Op::SetAttribute {
                         layer: block.into(),
                         namespace: "c2pa".to_owned(),
@@ -126,11 +138,27 @@ fn crops(member: &Member) -> anyhow::Result<Option<Vec<(LayerId, DynamicImage)>>
             })
             .collect()
     };
-    let crops: Vec<(LayerId, DynamicImage)> = member
+    let mut targets: Vec<(LayerId, kurbo::Rect)> = member
         .blocks(&project)
         .into_iter()
-        .filter_map(|(id, block)| {
-            let rect = Rect::covering(block.source.bounds()?, width, height)?;
+        .filter_map(|(id, block)| Some((id, block.source.bounds()?)))
+        .collect();
+    if let Some(only) = &member.blocks {
+        for &id in only.iter() {
+            if let Ok(koharu_scene::Layer {
+                content: Content::Text(text),
+                ..
+            }) = project.layer(id)
+                && let Some(bounds) = text.bounds()
+            {
+                targets.push((id, bounds));
+            }
+        }
+    }
+    let crops: Vec<(LayerId, DynamicImage)> = targets
+        .into_iter()
+        .filter_map(|(id, bounds)| {
+            let rect = Rect::covering(bounds, width, height)?;
             let mut crop = scan
                 .crop_imm(rect.x as u32, rect.y as u32, rect.width, rect.height)
                 .to_rgb8();

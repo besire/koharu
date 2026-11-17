@@ -83,10 +83,14 @@ impl Plan {
                 if stages.contains(&Stage::Detect) {
                     return Err(Error::invalid("detection doesn't run on blocks"));
                 }
+                let recognize_only = stages.iter().eq([Stage::Recognize].iter());
                 let mut held = BTreeMap::<PageId, Vec<LayerId>>::new();
                 for &block in blocks {
                     let page = match project.layer(block).map(|layer| &layer.content) {
                         Ok(Content::Block(_)) => project.parent(block)?.0.id,
+                        Ok(Content::Text(text)) if recognize_only && text.bounds().is_some() => {
+                            project.parent(block)?.0.id
+                        }
                         _ => return Err(Error::invalid(format!("layer {block} isn't a block"))),
                     };
                     held.entry(page).or_default().push(block);
@@ -226,13 +230,28 @@ mod tests {
 
     #[test]
     fn a_target_refuses_stages_that_dont_run_on_it() -> anyhow::Result<()> {
-        let (_dir, session, page, block) = project()?;
+        let (_dir, mut session, page, block) = project()?;
+        let changed = session.apply(Edit {
+            label: "text".to_owned(),
+            ops: vec![serde_json::from_value(json!({
+                "op": "add_layer",
+                "page": page,
+                "index": 1,
+                "layer": {"kind": "text", "frame": {"box": {"bounds": {"x": 0.0, "y": 0.0, "width": 40.0, "height": 20.0}}}},
+            }))?],
+        })?;
+        let Some(Created::Layer { id: text_layer, .. }) = changed.created.first().cloned() else {
+            anyhow::bail!("no text layer");
+        };
         let project = session.project();
         let blocks = Target::Blocks(vec![block]);
         assert!(Plan::new(&project, &blocks, &stages(&[Stage::Detect])).is_err());
         let found = Plan::new(&project, &blocks, &stages(&[Stage::Recognize]))?;
         assert_eq!(found.pages.len(), 1);
         assert_eq!(found.pages[0].0, page);
+        let manual_text = Target::Blocks(vec![text_layer]);
+        assert!(Plan::new(&project, &manual_text, &stages(&[Stage::Recognize])).is_ok());
+        assert!(Plan::new(&project, &manual_text, &stages(&[Stage::Translate])).is_err());
 
         let area = Target::Area {
             page,

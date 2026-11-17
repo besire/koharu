@@ -45,6 +45,7 @@
   "colorPicker": {
     "brushColor": "笔刷颜色",
     "hexCode": "十六进制颜色代码",
+    "recent": "最近用过个颜色",
     "sampleCanvas": "从画布浪取颜色",
     "transparent": "透明"
   },
@@ -84,12 +85,14 @@
   },
   "fontPicker": {
     "choose": "选字体",
+    "favorite": "收藏 {{family}}",
     "fontCount": "{{count}} 种字体",
     "fontCount_one": "{{count}} 种字体",
     "fontCount_other": "{{count}} 种字体",
     "fonts": "字体",
     "noResults": "寻弗着符合条件个字体",
-    "search": "搜寻字体"
+    "search": "搜寻字体",
+    "unfavorite": "取消收藏 {{family}}"
   },
   "history": {
     "close": "关脱历史记录",
@@ -167,6 +170,8 @@
     "borderWidth": "描边宽度",
     "chooseFontSize": "选字体大小",
     "decreaseBorderWidth": "拿描边调细点",
+    "decreaseLetterSpacing": "调小字间距",
+    "decreaseLineHeight": "调小行高",
     "font": "字体",
     "fontSize": "字体大小",
     "fontStyles": {
@@ -176,9 +181,16 @@
     "fontWeight": "字体粗细",
     "horizontal": "横排",
     "increaseBorderWidth": "拿描边调粗点",
+    "increaseLetterSpacing": "调大字间距",
+    "increaseLineHeight": "调大行高",
+    "letterSpacing": "字距",
+    "lineHeight": "行高",
+    "notePlaceholder": "补充搿块文字个语境或者翻法说明…",
     "opacity": "不透明度",
+    "runOcr": "重新识别 OCR",
     "selectPage": "先选一页，再看箇页个图层。",
     "source": "原文",
+    "spacing": "行高搭字距",
     "text": "文本",
     "textColor": "文本颜色",
     "textDirection": "文本方向",
@@ -218,6 +230,7 @@
     },
     "lock": "锁牢 {{name}}",
     "locked": "锁牢",
+    "noteLabel": "{{name}} 个翻译备注",
     "opacityLabel": "{{name}} 个不透明度",
     "parts": {
       "cleanup": "清理",
@@ -260,8 +273,10 @@
     "view": "视图"
   },
   "model": {
+    "autoDetect": "自动识别",
     "baseUrl": "基础 URL",
     "default": "默认",
+    "sourceLanguage": "源语言",
     "targetLanguage": "目标语言"
   },
   "modelPicker": {
@@ -290,6 +305,7 @@
     "selected": "拣中个页面：{{count}} 页"
   },
   "outputPicker": {
+    "sourceLanguage": "源语言",
     "targetLanguage": "目标语言",
     "title": "翻译输出"
   },
@@ -367,10 +383,22 @@
       "thresholds": "阈值",
       "title": "处理流程",
       "translator": {
+        "addTerm": "添加词条",
+        "deletePreset": "删脱预设",
+        "glossary": "术语表",
+        "glossaryDescription": "跨页保持人物名字搭固定用词一致。",
+        "glossaryNote": "备注（选填）",
+        "glossarySource": "原文词条",
+        "glossaryTarget": "指定翻法",
         "instructions": "额外指示",
         "instructionsDescription": "可以勿填，用啥个语言、啥个格式写侪可以，比方讲名字哪能写、语气哪能。Koharu 会照原样接勒自家个系统提示词后头。",
+        "presetName": "预设名字",
+        "presets": "保存好个预设",
         "reasoning": "推理",
         "reasoningDescription": "翻译个辰光用模型推理。",
+        "removeTerm": "删脱词条",
+        "savePreset": "保存预设",
+        "sourceLanguageDescription": "指定原文语言，或者让系统自动识别。",
         "targetLanguageDescription": "选译文要用个目标语言。",
         "vision": "视觉",
         "visionDescription": "翻译个辰光，也拿页面图像输入畀 LLM。"

@@ -332,6 +332,12 @@ export type Frame =
       }
     } & { box?: never })
 
+export type GlossaryEntry = {
+  source: string
+  target: string
+  note?: string | null
+}
+
 /**  A folder of layers, drawn first to last. */
 export type Group = Record<string, never>
 
@@ -376,6 +382,11 @@ export type InpainterConfig = {
    *  area's can; LaMa, which takes none, ignores it.
    */
   prompt?: string
+}
+
+export type InstructionPreset = {
+  name: string
+  instructions: string
 }
 
 /**
@@ -719,6 +730,7 @@ export type Ref = string
 
 export type RendererConfig = {
   font_families?: string[]
+  favorite_fonts?: string[]
 }
 
 export type Result<T, E> = ({ Ok: T } & { Err?: never }) | ({ Err: E } & { Ok?: never })
@@ -847,6 +859,8 @@ export type TextStyle = {
   align?: Align | null
   /**  A paragraph key: a multiple of each line's largest size. */
   line_height?: number | null
+  /**  A paragraph key: extra advance per glyph as a multiple of font size (em). */
+  letter_spacing?: number | null
 }
 
 export type Tool =
@@ -880,6 +894,11 @@ export type Transform = [[number, number, number], [number, number, number]]
 export type TranslatorConfig = {
   /**  A `vendor/model` reference, as koharu-llm connects one. */
   model?: string
+  /**
+   *  Source language override as a CLDR-named BCP 47 tag; `None` infers it
+   *  from the page's recognized blocks and script.
+   */
+  source?: string | null
   /**  A language CLDR names in English. */
   target?: string
   /**
@@ -899,6 +918,10 @@ export type TranslatorConfig = {
    *  after OpenAI's `reasoning_effort`; the model's own default when unset.
    */
   reasoning?: string | null
+  /**  Recurring terms and character names appended to the system prompt. */
+  glossary?: GlossaryEntry[]
+  /**  Named instruction presets saved in preferences. */
+  presets?: InstructionPreset[]
 }
 
 export type Value = null | boolean | number | string | Value[] | { [key in string]: Value }

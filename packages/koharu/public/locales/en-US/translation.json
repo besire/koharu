@@ -45,6 +45,7 @@
   "colorPicker": {
     "brushColor": "Brush color",
     "hexCode": "Hex color code",
+    "recent": "Recent colors",
     "sampleCanvas": "Pick color from canvas",
     "transparent": "Transparent"
   },
@@ -84,12 +85,14 @@
   },
   "fontPicker": {
     "choose": "Choose a font",
+    "favorite": "Pin {{family}}",
     "fontCount": "{{count}} fonts",
     "fontCount_one": "{{count}} font",
     "fontCount_other": "{{count}} fonts",
     "fonts": "Fonts",
     "noResults": "No fonts match this search",
-    "search": "Search fonts"
+    "search": "Search fonts",
+    "unfavorite": "Unpin {{family}}"
   },
   "history": {
     "close": "Close history",
@@ -167,6 +170,8 @@
     "borderWidth": "Border width",
     "chooseFontSize": "Choose font size",
     "decreaseBorderWidth": "Decrease border width",
+    "decreaseLetterSpacing": "Decrease letter spacing",
+    "decreaseLineHeight": "Decrease line height",
     "font": "Font",
     "fontSize": "Font size",
     "fontStyles": {
@@ -176,9 +181,16 @@
     "fontWeight": "Font weight",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Increase border width",
+    "increaseLetterSpacing": "Increase letter spacing",
+    "increaseLineHeight": "Increase line height",
+    "letterSpacing": "Tracking",
+    "lineHeight": "Leading",
+    "notePlaceholder": "Context or instructions for translating this block…",
     "opacity": "Opacity",
+    "runOcr": "Run OCR",
     "selectPage": "Select a page to inspect its layers.",
     "source": "Source text",
+    "spacing": "Line height and letter spacing",
     "text": "Text",
     "textColor": "Text color",
     "textDirection": "Text direction",
@@ -218,6 +230,7 @@
     },
     "lock": "Lock {{name}}",
     "locked": "Locked",
+    "noteLabel": "{{name}} translator note",
     "opacityLabel": "{{name}} opacity",
     "parts": {
       "cleanup": "Cleanup",
@@ -260,8 +273,10 @@
     "view": "View"
   },
   "model": {
+    "autoDetect": "Auto-detect",
     "baseUrl": "Base URL",
     "default": "Default",
+    "sourceLanguage": "Source language",
     "targetLanguage": "Target language"
   },
   "modelPicker": {
@@ -290,6 +305,7 @@
     "selected": "{{count}} selected"
   },
   "outputPicker": {
+    "sourceLanguage": "Source language",
     "targetLanguage": "Target language",
     "title": "Translation output"
   },
@@ -367,10 +383,22 @@
       "thresholds": "Thresholds",
       "title": "Pipeline",
       "translator": {
+        "addTerm": "Add term",
+        "deletePreset": "Delete preset",
+        "glossary": "Glossary",
+        "glossaryDescription": "Keep character names and recurring terms consistent across pages.",
+        "glossaryNote": "Optional note",
+        "glossarySource": "Source term",
+        "glossaryTarget": "Preferred translation",
         "instructions": "Additional instructions",
         "instructionsDescription": "Optional, in any language and form, such as a name's spelling or the tone. Koharu adds them, as written, after its own system prompt.",
+        "presetName": "Preset name",
+        "presets": "Saved presets",
         "reasoning": "Reasoning",
         "reasoningDescription": "Use model reasoning during translation.",
+        "removeTerm": "Remove term",
+        "savePreset": "Save preset",
+        "sourceLanguageDescription": "Override automatic source-language detection when needed.",
         "targetLanguageDescription": "Choose the language to translate text into.",
         "vision": "Vision",
         "visionDescription": "Feed page images to the LLM during translation."

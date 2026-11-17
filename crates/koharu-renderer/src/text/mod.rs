@@ -62,6 +62,7 @@ pub struct ResolvedText {
     /// of its lines on the right.
     pub rtl: bool,
     pub line_height: f32,
+    pub letter_spacing: f32,
     /// The characters no font of their span has, drawn as its first font's
     /// missing glyph, in code point order.
     pub uncovered: Vec<char>,

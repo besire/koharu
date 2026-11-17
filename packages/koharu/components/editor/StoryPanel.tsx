@@ -1,10 +1,11 @@
 'use client'
 
+import { ScanText } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CommitTextarea } from '@/components/controls/CommitTextarea'
-import { dispatch } from '@/lib/backend'
+import { call, dispatch } from '@/lib/backend'
 import {
   findLayer,
   isBlockLayer,
@@ -15,9 +16,10 @@ import {
   type TextLayer,
 } from '@/lib/document'
 import { usePage, useStory } from '@/lib/queries'
-import { setSourceText, setText } from '@/lib/scene'
+import { setLayerNote, setSourceText, setText } from '@/lib/scene'
 import { useKoharuStore } from '@/lib/store'
-import type { LayerId } from '@koharu/ipc/protocol'
+import { commands, type LayerId } from '@koharu/ipc/protocol'
+import { Button } from '@koharu/ui/components/button'
 import { ScrollArea } from '@koharu/ui/components/scroll-area'
 import { cn } from '@koharu/ui/lib/utils'
 
@@ -95,6 +97,14 @@ function StoryText({
     state.selectedLayers.some((selected) => ids.includes(selected)),
   )
   const setStoryHover = useKoharuStore((state) => state.setStoryHover)
+  const jobs = useKoharuStore((state) => state.jobs)
+  const running = Object.values(jobs).some((job) => job.state === 'running')
+  const isBlock = isBlockLayer(layer)
+  const sfx = isBlock && layer.role === 'sfx'
+  const canRunOcr = isBlock || (isTextLayer(layer) && typeof layer.frame === 'object')
+  const note = typeof layer.attributes.koharu?.note === 'string' ? layer.attributes.koharu.note : ''
+  const runOcr = () =>
+    void call(commands.runPipeline, { blocks: [layer.id] }, ['recognize']).catch(() => undefined)
 
   useEffect(() => {
     const element = row.current
@@ -120,15 +130,34 @@ function StoryText({
       onPointerEnter={() => setStoryHover(layer.id)}
       onPointerLeave={() => setStoryHover(null)}
     >
-      <ReadingNumber number={number} sfx={isBlockLayer(layer) && layer.role === 'sfx'} />
+      <ReadingNumber number={number} sfx={sfx} />
       <div className='grid min-w-0 gap-1'>
-        {isBlockLayer(layer) ? (
-          <>
-            {layer.role === 'sfx' && (
+        {(canRunOcr || sfx) && (
+          <div className='flex items-center justify-between gap-1'>
+            {sfx ? (
               <span className='px-0.5 text-[8px] font-medium tracking-[0.06em] text-muted-foreground uppercase'>
                 {t('story.sfx')}
               </span>
+            ) : (
+              <span />
             )}
+            {canRunOcr && (
+              <Button
+                type='button'
+                variant='ghost'
+                size='xs'
+                disabled={locked || running}
+                className='h-5 gap-1 px-1.5 text-[10px] text-muted-foreground hover:text-foreground'
+                onClick={runOcr}
+              >
+                <ScanText className='size-3' />
+                <span>{t('inspector.runOcr')}</span>
+              </Button>
+            )}
+          </div>
+        )}
+        {isBlock ? (
+          <>
             <CommitTextarea
               aria-label={t('layers.sourceLabel', { name })}
               placeholder={t('inspector.source')}
@@ -146,6 +175,15 @@ function StoryText({
               className={`${field} border-primary/25`}
               value={plainText(layer.translation)}
               onCommit={(text) => dispatch(setText, layer.id, text)}
+            />
+            <CommitTextarea
+              aria-label={t('layers.noteLabel', { name })}
+              placeholder={t('inspector.notePlaceholder')}
+              wrap='soft'
+              disabled={locked}
+              className='max-h-14 min-h-6 w-full max-w-full min-w-0 resize-y overflow-y-auto rounded-md bg-background px-1.5 py-1 text-[11px] leading-4 text-muted-foreground md:text-[11px]'
+              value={note}
+              onCommit={(next) => dispatch(setLayerNote, layer.id, next)}
             />
           </>
         ) : (

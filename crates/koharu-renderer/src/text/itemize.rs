@@ -299,6 +299,7 @@ mod tests {
             vertical: false,
             align: Align::Start,
             line_height: 1.2,
+            letter_spacing: 0.0,
             hyphenation: None,
             frame: Frame::Point,
         }

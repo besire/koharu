@@ -45,6 +45,7 @@
   "colorPicker": {
     "brushColor": "Couleur du pinceau",
     "hexCode": "Code couleur hexadécimal",
+    "recent": "Couleurs récentes",
     "sampleCanvas": "Prélever une couleur sur le canevas",
     "transparent": "Transparent"
   },
@@ -84,12 +85,14 @@
   },
   "fontPicker": {
     "choose": "Choisir une police",
+    "favorite": "Épingler {{family}}",
     "fontCount": "{{count}} polices",
     "fontCount_one": "{{count}} police",
     "fontCount_other": "{{count}} polices",
     "fonts": "Polices",
     "noResults": "Aucune police ne correspond à cette recherche",
-    "search": "Rechercher des polices"
+    "search": "Rechercher des polices",
+    "unfavorite": "Désépingler {{family}}"
   },
   "history": {
     "close": "Fermer l’historique",
@@ -167,6 +170,8 @@
     "borderWidth": "Épaisseur du contour",
     "chooseFontSize": "Choisir la taille de police",
     "decreaseBorderWidth": "Réduire l’épaisseur du contour",
+    "decreaseLetterSpacing": "Réduire l’espacement des lettres",
+    "decreaseLineHeight": "Réduire l’interligne",
     "font": "Police",
     "fontSize": "Taille de police",
     "fontStyles": {
@@ -176,9 +181,16 @@
     "fontWeight": "Graisse",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Augmenter l’épaisseur du contour",
+    "increaseLetterSpacing": "Augmenter l’espacement des lettres",
+    "increaseLineHeight": "Augmenter l’interligne",
+    "letterSpacing": "Approche",
+    "lineHeight": "Interligne",
+    "notePlaceholder": "Contexte ou consignes pour traduire ce bloc…",
     "opacity": "Opacité",
+    "runOcr": "Lancer l’OCR",
     "selectPage": "Sélectionnez une page pour inspecter ses calques.",
     "source": "Texte source",
+    "spacing": "Interligne et approche",
     "text": "Texte",
     "textColor": "Couleur du texte",
     "textDirection": "Sens du texte",
@@ -218,6 +230,7 @@
     },
     "lock": "Verrouiller {{name}}",
     "locked": "Verrouillé",
+    "noteLabel": "Note de traduction de {{name}}",
     "opacityLabel": "Opacité de {{name}}",
     "parts": {
       "cleanup": "Nettoyage",
@@ -260,8 +273,10 @@
     "view": "Affichage"
   },
   "model": {
+    "autoDetect": "Détection auto",
     "baseUrl": "URL de base",
     "default": "Par défaut",
+    "sourceLanguage": "Langue source",
     "targetLanguage": "Langue cible"
   },
   "modelPicker": {
@@ -290,6 +305,7 @@
     "selected": "Sélection : {{count}}"
   },
   "outputPicker": {
+    "sourceLanguage": "Langue source",
     "targetLanguage": "Langue cible",
     "title": "Sortie de traduction"
   },
@@ -367,10 +383,22 @@
       "thresholds": "Seuils",
       "title": "Pipeline",
       "translator": {
+        "addTerm": "Ajouter un terme",
+        "deletePreset": "Supprimer le préréglage",
+        "glossary": "Glossaire",
+        "glossaryDescription": "Gardez les noms de personnages et termes récurrents cohérents d’une page à l’autre.",
+        "glossaryNote": "Note facultative",
+        "glossarySource": "Terme source",
+        "glossaryTarget": "Traduction souhaitée",
         "instructions": "Instructions supplémentaires",
         "instructionsDescription": "Facultatives, dans n’importe quelle langue et sous n’importe quelle forme, comme l’orthographe d’un nom ou le ton. Koharu les ajoute telles quelles après sa propre instruction système.",
+        "presetName": "Nom du préréglage",
+        "presets": "Préréglages enregistrés",
         "reasoning": "Raisonnement",
         "reasoningDescription": "Utiliser le raisonnement du modèle pendant la traduction.",
+        "removeTerm": "Retirer le terme",
+        "savePreset": "Enregistrer",
+        "sourceLanguageDescription": "Remplace la détection automatique de la langue source si nécessaire.",
         "targetLanguageDescription": "Choisissez la langue dans laquelle traduire le texte.",
         "vision": "Vision",
         "visionDescription": "Transmettre les images des pages au LLM pendant la traduction."

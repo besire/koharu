@@ -14,22 +14,34 @@ import {
   SelectValue,
 } from '@koharu/ui/components/select'
 
-/** The translator's target language, saved as soon as it's picked. */
+/** The translator's source and target languages, saved as soon as they're picked. */
 export function OutputPicker({
+  sourceLanguage,
   targetLanguage,
   disabled = false,
   saving = false,
   onBack,
+  onSourceChange,
   onChange,
 }: {
+  sourceLanguage: string | null
   targetLanguage: string
   disabled?: boolean
   saving?: boolean
   onBack: () => void
+  onSourceChange: (sourceLanguage: string | null) => void
   onChange: (targetLanguage: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const languageChoices = useMemo(() => orderedLanguageChoices(i18n.language), [i18n.language])
+  const sourceItems = useMemo(
+    () =>
+      Object.fromEntries([
+        ['auto', t('model.autoDetect')],
+        ...languageChoices.map((language) => [language.tag, language.name]),
+      ]),
+    [languageChoices, t],
+  )
 
   return (
     <div className='min-w-0 overflow-hidden'>
@@ -49,6 +61,34 @@ export function OutputPicker({
       </div>
 
       <div className='grid gap-2 p-1'>
+        <label className='grid gap-1 text-[9px] text-muted-foreground'>
+          {t('model.sourceLanguage')}
+          <Select
+            value={sourceLanguage ?? 'auto'}
+            items={sourceItems}
+            disabled={disabled || saving}
+            onValueChange={(next) => {
+              if (!next) return
+              const resolved = next === 'auto' ? null : next
+              if (resolved !== sourceLanguage) onSourceChange(resolved)
+            }}
+          >
+            <SelectTrigger
+              aria-label={t('outputPicker.sourceLanguage')}
+              className='h-7 w-full text-[11px]'
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='auto'>{t('model.autoDetect')}</SelectItem>
+              {languageChoices.map((language) => (
+                <SelectItem key={language.tag} value={language.tag}>
+                  {language.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
         <label className='grid gap-1 text-[9px] text-muted-foreground'>
           {t('model.targetLanguage')}
           <Select

@@ -24,6 +24,7 @@ use crate::{Brush, Canvas, Colors, Effect, Notice, Tool};
 static RENDERER: std::sync::LazyLock<Renderer> = std::sync::LazyLock::new(|| {
     Renderer::new(RendererConfig {
         font_families: Vec::new(),
+        favorite_fonts: Vec::new(),
     })
 });
 
