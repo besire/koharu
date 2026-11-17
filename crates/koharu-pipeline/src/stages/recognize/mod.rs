@@ -79,9 +79,14 @@ pub(crate) async fn recognize(task: &Task, config: &PipelineConfig) -> anyhow::R
                     ) {
                         continue;
                     }
+                    let text = normalize_ocr_text(text);
+                    let resolved = match language {
+                        "und" => infer_script_language(&text),
+                        known => known,
+                    };
                     ops.push(koharu_scene::Op::UpdateLayer {
                         layer: block.into(),
-                        patch: json!({"source": {"content": text, "language": language}}),
+                        patch: json!({"source": {"content": text, "language": resolved}}),
                     });
                     ops.push(koharu_scene::Op::SetAttribute {
                         layer: block.into(),
@@ -156,5 +161,65 @@ fn blank(crop: &mut RgbImage, rect: Rect, own: LayerId, masks: &[(LayerId, Rect,
         if held(&others, px, py) && !held(&mine, px, py) {
             *pixel = Rgb(median);
         }
+    }
+}
+
+/// Manga OCR can emit replacement-box glyphs for an isolated Japanese ellipsis.
+/// Normalize only an all-placeholder sequence so ordinary OCR output stays intact.
+fn normalize_ocr_text(text: String) -> String {
+    let visible: Vec<char> = text.chars().filter(|ch| !ch.is_whitespace()).collect();
+    if visible.len() >= 2
+        && visible
+            .iter()
+            .all(|ch| matches!(ch, '☐' | '□' | '▢' | '▣' | '\u{FFFD}'))
+    {
+        "…".to_owned()
+    } else {
+        text
+    }
+}
+
+/// Script-based language tag for multilingual OCR (`und`): unambiguous Kana or
+/// Hangul tags the block directly, leaving shared Han or Latin text as `und`
+/// for page-level resolution.
+fn infer_script_language(text: &str) -> &'static str {
+    let mut has_kana = false;
+    let mut has_hangul = false;
+    for ch in text.chars() {
+        if matches!(
+            ch,
+            '\u{3040}'..='\u{309F}'
+                | '\u{30A0}'..='\u{30FF}'
+                | '\u{31F0}'..='\u{31FF}'
+                | '\u{FF66}'..='\u{FF9F}'
+        ) {
+            has_kana = true;
+        } else if matches!(
+            ch,
+            '\u{AC00}'..='\u{D7AF}' | '\u{1100}'..='\u{11FF}' | '\u{3130}'..='\u{318F}'
+        ) {
+            has_hangul = true;
+        }
+    }
+    if has_kana && !has_hangul {
+        "ja"
+    } else if has_hangul && !has_kana {
+        "ko"
+    } else {
+        "und"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{infer_script_language, normalize_ocr_text};
+
+    #[test]
+    fn placeholder_runs_normalize_to_ellipsis_and_scripts_tag_kana_or_hangul() {
+        assert_eq!(normalize_ocr_text("☐☐".to_owned()), "…");
+        assert_eq!(normalize_ocr_text("☐".to_owned()), "☐");
+        assert_eq!(infer_script_language("ちょっと待って！"), "ja");
+        assert_eq!(infer_script_language("잠깐만요!"), "ko");
+        assert_eq!(infer_script_language("先生！"), "und");
     }
 }

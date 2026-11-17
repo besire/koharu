@@ -13,6 +13,8 @@ mod model;
 mod order;
 mod processor;
 mod rooms;
+mod slice;
+mod split;
 mod suppress;
 
 use anyhow::{Context, Result};
@@ -104,14 +106,37 @@ impl KoharuLayoutHighres {
             bubble: options.bubble.unwrap_or(self.thresholds.bubble),
             panel: options.panel.unwrap_or(self.thresholds.panel),
         };
-        let mut detections = koharu_torch::inference_mode(|| {
+        let windows = slice::windows(image.width(), image.height());
+        let mut detections = if windows.len() <= 1 {
+            self.inference_tile(image, thresholds)?
+        } else {
+            let seams = slice::seams(&windows);
+            let mut gathered = Vec::new();
+            for (start_y, end_y) in windows {
+                let tile = image.crop_imm(0, start_y, image.width(), end_y - start_y);
+                let mut tile_detections = self.inference_tile(&tile, thresholds)?;
+                for detection in &mut tile_detections {
+                    slice::offset(detection, start_y);
+                }
+                gathered.extend(tile_detections);
+            }
+            slice::stitch(gathered, &seams)
+        };
+        suppress::suppress(&mut detections);
+        Ok(Detected(detections))
+    }
+
+    fn inference_tile(
+        &self,
+        image: &DynamicImage,
+        thresholds: Thresholds,
+    ) -> Result<Vec<Detection>> {
+        koharu_torch::inference_mode(|| {
             let pixel_values = self.processor.preprocess(image, self.device)?;
             let output = self.model.forward(&pixel_values)?;
             self.processor
                 .postprocess(&output, image.width(), image.height(), thresholds)
-        })?;
-        suppress::suppress(&mut detections);
-        Ok(Detected(detections))
+        })
     }
 }
 
@@ -138,6 +163,7 @@ impl Detected {
             });
         suppress::merge(&mut detections);
         suppress::disjoint(&mut detections);
+        split::split(&mut detections, page);
         order::sort(&mut detections);
         layout::build(detections, page.width(), page.height())
     }

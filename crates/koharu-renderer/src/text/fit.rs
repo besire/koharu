@@ -59,9 +59,17 @@ pub(super) fn fit(
         };
         return (words, placed);
     }
-    // Shrinking stops at half the set size. Whole words shrink first, as
-    // Comicraft avoids a hyphen whenever it can.
-    let floor = if shrinks(&styled.frame) { 0.5 } else { 1.0 };
+    // Shrinking stops at half the set size, or a quarter for a best-fit box
+    // whose starting size came from the page's larger balloon dialogue. Whole
+    // words shrink first, as Comicraft avoids a hyphen whenever it can.
+    let floor = match &styled.frame {
+        koharu_scene::Frame::Box {
+            fit: koharu_scene::Fit::Best,
+            ..
+        } => 0.25,
+        frame if shrinks(frame) => 0.5,
+        _ => 1.0,
+    };
     let placed = largest_fit(
         floor,
         |scale| overflows(styled, room, &words, scale),
@@ -655,6 +663,17 @@ mod tests {
         let (_, placed) = fit(&styled, &room, |_| vec![word(40.0, Break::End)]);
         assert!(!placed.overflowed);
         assert!((2.45..=2.5).contains(&placed.scale), "{}", placed.scale);
+        Ok(())
+    }
+
+    #[test]
+    fn a_best_fit_box_shrinks_below_half_when_its_room_is_a_small_caption() -> Result<()> {
+        // A caption seeded at the page's balloon size whose box holds it only
+        // around a third of that size.
+        let (styled, room) = in_box(40.0, 10.0, "best")?;
+        let (_, placed) = fit(&styled, &room, |_| vec![word(100.0, Break::End)]);
+        assert!(!placed.overflowed);
+        assert!((0.35..0.41).contains(&placed.scale), "{}", placed.scale);
         Ok(())
     }
 
