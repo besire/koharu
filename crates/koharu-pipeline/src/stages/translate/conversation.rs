@@ -4,17 +4,32 @@ use icu_locale_core::LanguageIdentifier;
 use indoc::indoc;
 use koharu_llm::{
     Context, SummaryPrompts,
-    rig::{driver::DynModel, operation::Completion},
+    rig::{
+        completion::{Message, Usage},
+        driver::DynModel,
+        operation::Completion,
+    },
 };
-use koharu_scene::ProjectId;
+use koharu_scene::{PageId, Project, ProjectId};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
-use super::{TranslatorConfig, model};
+use super::{
+    GlossaryEntry, TranslatorConfig, model,
+    turn::{keys, numbered},
+};
+
+type Signature = (
+    String,
+    LanguageIdentifier,
+    Option<LanguageIdentifier>,
+    String,
+    Vec<GlossaryEntry>,
+);
 
 /// A project's conversation, and what it was written with.
 pub(crate) struct Conversation {
-    /// The model, the target, and the prompt its history was written with.
-    with: Option<(String, LanguageIdentifier, String)>,
+    /// The model, languages, instructions, and glossary its history was written with.
+    with: Option<Signature>,
     pub(super) context: Context,
     /// A hosted model, connected for its first page.
     hosted: Option<DynModel<Completion>>,
@@ -33,16 +48,55 @@ impl Conversation {
     }
 
     /// Starts again unless its history was written with `config`'s model,
-    /// target, and instructions.
+    /// languages, instructions, and glossary.
     pub(super) fn keep(&mut self, config: &TranslatorConfig) {
         let with = (
             config.model.clone(),
             config.target.clone(),
+            config.source.clone(),
             config.instructions.clone(),
+            config.glossary.clone(),
         );
         if self.with.as_ref() != Some(&with) {
             *self = Self::new();
             self.with = Some(with);
+        }
+    }
+
+    /// Seeds an empty conversation from already-translated pages before `before`
+    /// so reopening a `.khr` project keeps character names and tone consistent.
+    pub(super) fn hydrate(&mut self, project: &Project, before: PageId) {
+        if !self.context.messages().is_empty() {
+            return;
+        }
+        let mut turns = Vec::new();
+        let mut last = None;
+        for page in project.pages().take_while(|page| page.id != before) {
+            let pairs: Vec<(String, String)> = project
+                .blocks(page.id)
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|(_, block)| {
+                    let source = block.source.content.text();
+                    let translation = block.translation.as_ref()?.content.text();
+                    (!source.trim().is_empty() && !translation.trim().is_empty())
+                        .then_some((source, translation))
+                })
+                .collect();
+            if pairs.is_empty() {
+                continue;
+            }
+            let keys = keys(pairs.len());
+            let (sources, translations): (Vec<String>, Vec<String>) = pairs.into_iter().unzip();
+            let user = Message::user(numbered(&keys, sources.iter().map(String::as_str)));
+            let assistant =
+                Message::assistant(numbered(&keys, translations.iter().map(String::as_str)));
+            turns.push((vec![user, assistant], Usage::default()));
+            last = Some((sources, translations));
+        }
+        if !turns.is_empty() {
+            self.context.record(turns);
+            self.last = last;
         }
     }
 
