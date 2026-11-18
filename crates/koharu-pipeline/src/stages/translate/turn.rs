@@ -2,7 +2,7 @@
 
 use std::future::IntoFuture;
 
-use anyhow::{Context as _, Result, bail, ensure};
+use anyhow::{Context as _, Result, ensure};
 use koharu_llm::rig::{
     completion::{
         AssistantContent, GenerationOptions, Message, Reasoning, Usage,
@@ -27,10 +27,15 @@ pub(super) struct Turn<'a> {
     cancel: &'a CancellationToken,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+struct AnswerError(String);
+
 impl<'a> Turn<'a> {
     pub(super) fn new(
         system: String,
         texts: &'a [String],
+        notes: &'a [Option<String>],
         image: Option<&'a str>,
         reasoning: Option<Reasoning>,
         cancel: &'a CancellationToken,
@@ -38,7 +43,7 @@ impl<'a> Turn<'a> {
         let keys = keys(texts.len());
         Self {
             system,
-            page: numbered(&keys, texts.iter().map(String::as_str)),
+            page: format_page(&keys, texts, notes),
             keys,
             texts,
             image,
@@ -61,7 +66,14 @@ impl<'a> Turn<'a> {
             .iter()
             .map(|message| Message::clone(message))
             .collect();
-        let Some(mut asked) = self.ask(model, history).await? else {
+        let asked = match self.ask(model, history.clone()).await {
+            Err(error) if error.downcast_ref::<AnswerError>().is_some() => {
+                tracing::info!("the answer failed schema validation ({error}); asking once more");
+                self.ask(model, history).await?
+            }
+            other => other?,
+        };
+        let Some(mut asked) = asked else {
             return Ok(None);
         };
         // A small model can answer a page with its answer to the page
@@ -161,7 +173,7 @@ fn remembered(messages: Vec<Message>) -> Vec<Message> {
 
 /// A key for each of `count` texts, numbered from 1 and padded to one width,
 /// so they sort in reading order wherever an object's keys are sorted.
-fn keys(count: usize) -> Vec<String> {
+pub(super) fn keys(count: usize) -> Vec<String> {
     let width = count.to_string().len();
     (1..=count)
         .map(|number| format!("{number:0width$}"))
@@ -169,13 +181,32 @@ fn keys(count: usize) -> Vec<String> {
 }
 
 /// The page as a JSON object of `keys` to `texts`, a text a line, in order.
-fn numbered<'t>(keys: &[String], texts: impl Iterator<Item = &'t str>) -> String {
+pub(super) fn numbered<'t>(keys: &[String], texts: impl Iterator<Item = &'t str>) -> String {
     let lines = keys
         .iter()
         .zip(texts)
         .map(|(key, text)| format!("  {}: {}", json!(key), json!(text)))
         .collect::<Vec<_>>();
     format!("{{\n{}\n}}", lines.join(",\n"))
+}
+
+/// The page's JSON object, followed by `[Notes]` only when at least one block
+/// carries a translator note so unannotated pages stay pure JSON.
+fn format_page(keys: &[String], texts: &[String], notes: &[Option<String>]) -> String {
+    let body = numbered(keys, texts.iter().map(String::as_str));
+    let notes: Vec<String> = keys
+        .iter()
+        .zip(notes)
+        .filter_map(|(key, note)| {
+            let note = note.as_deref()?.trim();
+            (!note.is_empty()).then(|| format!("- {}: {note}", json!(key)))
+        })
+        .collect();
+    if notes.is_empty() {
+        body
+    } else {
+        format!("{body}\n\n[Notes]\n{}", notes.join("\n"))
+    }
 }
 
 /// An object with a string for each of `keys`. Every property is required,
@@ -194,24 +225,50 @@ fn schema(keys: &[String]) -> Result<schemars::Schema> {
     .context("the answer's schema isn't valid")
 }
 
+/// Strips a surrounding Markdown code fence (` ```json ... ``` `) that
+/// prompted-mode providers sometimes emit around a JSON object.
+fn strip_code_fence(answer: &str) -> &str {
+    let trimmed = answer.trim();
+    let Some(rest) = trimmed.strip_prefix("```") else {
+        return trimmed;
+    };
+    let Some(body) = rest.find('\n').map(|newline| &rest[newline + 1..]) else {
+        return trimmed;
+    };
+    body.strip_suffix("```").map_or(trimmed, str::trim)
+}
+
 /// The translation for each of `keys` in `answer`, which must hold exactly
 /// those keys, each a text that isn't blank.
 fn answers(answer: &str, keys: &[String]) -> Result<Vec<String>> {
-    let Value::Object(mut answer) =
-        serde_json::from_str(answer).context("the answer isn't JSON")?
-    else {
-        bail!("the answer isn't a JSON object");
+    let parsed: Value = serde_json::from_str(strip_code_fence(answer))
+        .map_err(|error| AnswerError(format!("the answer isn't JSON: {error}")))?;
+    let Value::Object(mut answer) = parsed else {
+        return Err(AnswerError("the answer isn't a JSON object".to_owned()).into());
     };
     let translations = keys
         .iter()
-        .map(|key| match answer.remove(key) {
-            Some(Value::String(text)) if !text.trim().is_empty() => Ok(text.trim().to_owned()),
-            Some(Value::String(_)) => bail!("the answer leaves text {key} blank"),
-            Some(_) => bail!("the answer for text {key} isn't text"),
-            None => bail!("the answer leaves text {key} out"),
+        .enumerate()
+        .map(|(index, key)| {
+            let value = answer.remove(key).or_else(|| {
+                let unpadded = (index + 1).to_string();
+                (!keys.iter().any(|other| other == &unpadded))
+                    .then(|| answer.remove(&unpadded))
+                    .flatten()
+            });
+            match value {
+                Some(Value::String(text)) if !text.trim().is_empty() => Ok(text.trim().to_owned()),
+                Some(Value::String(_)) => {
+                    Err(AnswerError(format!("the answer leaves text {key} blank")).into())
+                }
+                Some(_) => Err(AnswerError(format!("the answer for text {key} isn't text")).into()),
+                None => Err(AnswerError(format!("the answer leaves text {key} out")).into()),
+            }
         })
         .collect::<Result<Vec<_>>>()?;
-    ensure!(answer.is_empty(), "the answer has texts the page doesn't");
+    if !answer.is_empty() {
+        return Err(AnswerError("the answer has texts the page doesn't".to_owned()).into());
+    }
     Ok(translations)
 }
 
@@ -265,5 +322,13 @@ mod tests {
         assert!(answers(r#"{"1": "One", "2": " "}"#, &keys).is_err());
         assert!(answers(r#"{"1": "One", "2": "Two", "3": "Three"}"#, &keys).is_err());
         assert!(answers("One, Two", &keys).is_err());
+
+        let padded = super::keys(10);
+        let unpadded =
+            r#"{"1":"A","2":"B","3":"C","4":"D","5":"E","6":"F","7":"G","8":"H","9":"I","10":"J"}"#;
+        assert_eq!(
+            answers(&format!("```json\n{unpadded}\n```"), &padded).expect("fenced unpadded"),
+            ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+        );
     }
 }
