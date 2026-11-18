@@ -147,7 +147,13 @@ fn shared(left: &Mask, right: &Mask) -> f32 {
 }
 
 /// The pixels either mask sets, over both masks' extent.
-fn union(left: &Mask, right: &Mask) -> Mask {
+pub(super) fn union(left: &Mask, right: &Mask) -> Mask {
+    if left.width == 0 || left.height == 0 || left.pixels.is_empty() {
+        return right.clone();
+    }
+    if right.width == 0 || right.height == 0 || right.pixels.is_empty() {
+        return left.clone();
+    }
     let (x, y) = (left.x.min(right.x), left.y.min(right.y));
     let width = (left.x + left.width).max(right.x + right.width) - x;
     let height = (left.y + left.height).max(right.y + right.height) - y;
