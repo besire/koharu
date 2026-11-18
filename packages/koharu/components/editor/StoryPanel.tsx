@@ -1,7 +1,7 @@
 'use client'
 
 import { defaultRangeExtractor, observeElementRect, useVirtualizer } from '@tanstack/react-virtual'
-import { Languages, MoreHorizontal } from 'lucide-react'
+import { Languages, MoreHorizontal, ScanText } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +17,7 @@ import {
   type TextLayer,
 } from '@/lib/document'
 import { usePageStory, useProject } from '@/lib/queries'
-import { deleteLayers, setSourceText, setText } from '@/lib/scene'
+import { deleteLayers, setLayerNote, setSourceText, setText } from '@/lib/scene'
 import { useKoharuStore } from '@/lib/store'
 import { commands, type LayerId, type PageId } from '@koharu/ipc/protocol'
 import { Button } from '@koharu/ui/components/button'
@@ -208,6 +208,12 @@ function StoryText({
     state.selectedLayers.some((selected) => ids.includes(selected)),
   )
   const setStoryHover = useKoharuStore((state) => state.setStoryHover)
+  const jobs = useKoharuStore((state) => state.jobs)
+  const running = Object.values(jobs).some((job) => job.state === 'running')
+  const canRunOcr = isBlockLayer(layer) || (isTextLayer(layer) && typeof layer.frame === 'object')
+  const note = typeof layer.attributes.koharu?.note === 'string' ? layer.attributes.koharu.note : ''
+  const runOcr = () =>
+    void call(commands.runPipeline, { blocks: [layer.id] }, ['recognize']).catch(() => undefined)
 
   useEffect(() => {
     const element = row.current
@@ -296,6 +302,16 @@ function StoryText({
             align='start'
             className='w-auto min-w-20 border border-border/50 p-0.5 shadow-sm ring-0'
           >
+            {canRunOcr && (
+              <DropdownMenuItem
+                disabled={locked || running}
+                className='min-h-7 gap-1 px-1.5 py-0.5 text-[11px]'
+                onClick={runOcr}
+              >
+                <ScanText className='size-3' />
+                {t('inspector.runOcr')}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               variant='destructive'
               disabled={locked}
@@ -332,6 +348,15 @@ function StoryText({
               className={`${field} border-primary/25`}
               value={plainText(layer.translation)}
               onCommit={(text) => dispatch(setText, layer.id, text)}
+            />
+            <CommitTextarea
+              aria-label={t('layers.noteLabel', { name })}
+              placeholder={t('inspector.notePlaceholder')}
+              wrap='soft'
+              disabled={locked}
+              className='max-h-14 min-h-6 w-full max-w-full min-w-0 resize-y overflow-y-auto rounded-md bg-background px-1.5 py-1 text-[11px] leading-4 text-muted-foreground md:text-[11px]'
+              value={note}
+              onCommit={(next) => dispatch(setLayerNote, layer.id, next)}
             />
           </>
         ) : (

@@ -24,6 +24,7 @@ import {
   LockOpen,
   MessageCircle,
   PanelsTopLeft,
+  ScanText,
   Shapes,
   Trash2,
   Type,
@@ -49,7 +50,7 @@ import {
 import { usePage } from '@/lib/queries'
 import { deleteLayers, moveLayers, setLocked, setPartVisibility, setVisibility } from '@/lib/scene'
 import { useKoharuStore } from '@/lib/store'
-import { type Layer, type LayerId } from '@koharu/ipc/protocol'
+import { commands, type Layer, type LayerId } from '@koharu/ipc/protocol'
 import { Button } from '@koharu/ui/components/button'
 import { ScrollArea } from '@koharu/ui/components/scroll-area'
 import { Slider } from '@koharu/ui/components/slider'
@@ -384,6 +385,9 @@ function LayerRow({
 function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void }) {
   const { t } = useTranslation()
   const name = localizedLayerName(layer, 0, t)
+  const jobs = useKoharuStore((state) => state.jobs)
+  const running = Object.values(jobs).some((job) => job.state === 'running')
+  const canRunOcr = isBlockLayer(layer) || (isTextLayer(layer) && typeof layer.frame === 'object')
   const [opacity, setOpacity] = useState(layer.opacity * 100)
 
   useEffect(() => {
@@ -394,6 +398,9 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
     void call(setVisibility, [layer.id], null, next / 100).catch(() =>
       setOpacity(layer.opacity * 100),
     )
+
+  const runOcr = () =>
+    void call(commands.runPipeline, { blocks: [layer.id] }, ['recognize']).catch(() => undefined)
 
   return (
     <div className='grid min-w-0 gap-1.5 px-1.5 pt-0.5 pb-1.5'>
@@ -417,6 +424,26 @@ function LayerEditor({ layer, onDelete }: { layer: Layer; onDelete?: () => void 
             {Math.round(opacity)}%
           </span>
         </div>
+        {canRunOcr && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon-xs'
+                  disabled={layer.locked || running}
+                  aria-label={t('inspector.runOcr')}
+                  className='size-5 rounded-md text-muted-foreground hover:text-foreground'
+                  onClick={runOcr}
+                />
+              }
+            >
+              <ScanText className='size-3' />
+            </TooltipTrigger>
+            <TooltipContent side='left'>{t('inspector.runOcr')}</TooltipContent>
+          </Tooltip>
+        )}
         {onDelete && (
           <Tooltip>
             <TooltipTrigger

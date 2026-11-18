@@ -80,8 +80,12 @@ export function TypesettingPreferences({
                       <FontPicker
                         value={family}
                         families={choices}
+                        favorites={value.favorite_fonts ?? []}
                         ariaLabel={t('settings.typesetting.familyLabel', { index: index + 1 })}
                         onChange={(next) => replaceFamily(index, next)}
+                        onFavoritesChange={(favorite_fonts) =>
+                          onChange({ ...value, favorite_fonts })
+                        }
                       />
                     </div>
                     <Button
@@ -112,6 +116,7 @@ export function TypesettingPreferences({
               <FontPicker
                 value=''
                 families={availableFamilies}
+                favorites={value.favorite_fonts ?? []}
                 disabled={fonts.isPending || availableFamilies.length === 0}
                 ariaLabel={t('settings.typesetting.addFamily')}
                 placeholder={
@@ -122,6 +127,7 @@ export function TypesettingPreferences({
                 onChange={(family) =>
                   onChange({ ...value, font_families: [...fontFamilies, family] })
                 }
+                onFavoritesChange={(favorite_fonts) => onChange({ ...value, favorite_fonts })}
               />
             </div>
             <span aria-hidden='true' className='size-7 shrink-0' />

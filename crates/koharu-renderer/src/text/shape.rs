@@ -76,7 +76,7 @@ impl<'a> ShapedText<'a> {
                 orientation: Orientation::Upright,
                 glyphs: 0..0,
             };
-            let shaped = shape_text(styled, &mut buffer, "-", &run, |_| 0)?;
+            let shaped = shape_text(styled, &mut buffer, "-", &run, false, |_| 0)?;
             run.glyphs = glyphs.len()..glyphs.len() + shaped.len();
             glyphs.extend(shaped);
             hyphens.push(Some(run));
@@ -141,7 +141,7 @@ pub(super) fn shape_run(
         ),
         false => (source.to_owned(), (0..source.len()).collect()),
     };
-    shape_text(styled, buffer, &text, run, |cluster| {
+    shape_text(styled, buffer, &text, run, true, |cluster| {
         range.start + clusters.get(cluster).copied().unwrap_or(0)
     })
 }
@@ -153,6 +153,7 @@ fn shape_text(
     buffer: &mut Buffer,
     text: &str,
     run: &Run,
+    apply_tracking: bool,
     cluster: impl Fn(usize) -> usize,
 ) -> Result<Vec<Glyph>> {
     // Sideways runs and tate-chu-yoko shape as horizontal text.
@@ -194,20 +195,28 @@ fn shape_text(
     )
     .context("failed to shape text with HarfRust")?;
     let scale = font.scale(span.size);
+    let tracking = if apply_tracking {
+        span.size * styled.letter_spacing
+    } else {
+        0.0
+    };
     Ok(buffer
         .glyph_infos()
         .iter()
         .zip(buffer.glyph_positions())
-        .map(|(info, position)| Glyph {
-            id: info.glyph_id,
-            cluster: cluster(info.cluster as usize),
-            advance: match vertical {
+        .map(|(info, position)| {
+            let base = match vertical {
                 true => (position.y_advance as f32 * scale).abs(),
                 false => position.x_advance as f32 * scale,
-            },
-            x_offset: position.x_offset as f32 * scale,
-            y_offset: position.y_offset as f32 * scale,
-            unsafe_to_break: info.unsafe_to_break(),
+            };
+            Glyph {
+                id: info.glyph_id,
+                cluster: cluster(info.cluster as usize),
+                advance: (base + tracking).max(0.0),
+                x_offset: position.x_offset as f32 * scale,
+                y_offset: position.y_offset as f32 * scale,
+                unsafe_to_break: info.unsafe_to_break(),
+            }
         })
         .collect())
 }
@@ -262,10 +271,28 @@ mod tests {
             vertical: false,
             align: Align::Start,
             line_height: 1.2,
+            letter_spacing: 0.0,
             hyphenation: None,
             chinese: false,
             frame: Frame::Point,
         }
+    }
+
+    #[test]
+    fn letter_spacing_widens_shaped_glyph_advances_without_tracking_hyphens() -> Result<()> {
+        let mut base = styled("AB");
+        base.hyphenation = Some(hypher::Lang::English);
+        let baseline = ShapedText::new(&base)?;
+
+        let mut tracked = styled("AB");
+        tracked.hyphenation = Some(hypher::Lang::English);
+        tracked.letter_spacing = 0.25;
+        let widened = ShapedText::new(&tracked)?;
+
+        // 0.25 em on a 16 px span adds 4 px per glyph while leaving the hyphen untouched.
+        assert!((widened.glyphs[0].advance - baseline.glyphs[0].advance - 4.0).abs() < 1e-3);
+        assert!((widened.hyphen(0) - baseline.hyphen(0)).abs() < 1e-3);
+        Ok(())
     }
 
     #[test]

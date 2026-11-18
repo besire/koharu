@@ -28,14 +28,49 @@ type ColorWellProps = {
     }
 )
 
+const RECENT_COLORS_KEY = 'koharu.recentColors'
+const MAX_RECENT_COLORS = 8
+
+function readRecentColors(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(RECENT_COLORS_KEY) ?? '[]')
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((item): item is string => typeof item === 'string')
+          .slice(0, MAX_RECENT_COLORS)
+      : []
+  } catch {
+    return []
+  }
+}
+
+function recordRecentColor(color: string): string[] {
+  const next = [color, ...readRecentColors().filter((existing) => existing !== color)].slice(
+    0,
+    MAX_RECENT_COLORS,
+  )
+  try {
+    window.localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(next))
+  } catch {
+    // Ignore storage errors in restricted environments.
+  }
+  return next
+}
+
 export function ColorWell(props: ColorWellProps) {
   const { t } = useTranslation()
   const { value, label, size = 'default', disabled = false, allowTransparent = false } = props
   const [draft, setDraft] = useState(value ?? '#000000')
   const [transparent, setTransparent] = useState(value === null)
   const [open, setOpen] = useState(false)
+  const [recent, setRecent] = useState<string[]>([])
   const sampling = useColorSampling()
   const accessibleLabel = label ?? t('colorPicker.brushColor')
+
+  useEffect(() => {
+    if (open) setRecent(readRecentColors())
+  }, [open])
 
   useEffect(() => {
     if (value === null) {
@@ -50,6 +85,7 @@ export function ColorWell(props: ColorWellProps) {
     const normalized = normalize(color)
     setDraft(normalized)
     setTransparent(false)
+    setRecent(recordRecentColor(normalized))
     if (props.allowTransparent) props.onChange(normalized)
     else props.onChange(normalized)
   }
@@ -130,6 +166,21 @@ export function ColorWell(props: ColorWellProps) {
             </Button>
           )}
         </div>
+        {recent.length > 0 && (
+          <div aria-label={t('colorPicker.recent')} className='mt-2.5 flex flex-wrap gap-1.5'>
+            {recent.map((swatch) => (
+              <button
+                key={swatch}
+                type='button'
+                aria-label={swatch}
+                title={swatch}
+                className='size-5 rounded-[4px] ring-1 ring-black/15 transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring'
+                style={{ backgroundColor: swatch }}
+                onClick={() => set(swatch)}
+              />
+            ))}
+          </div>
+        )}
         {allowTransparent && (
           <Button
             type='button'

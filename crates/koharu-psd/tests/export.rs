@@ -147,6 +147,7 @@ fn a_page_exports_as_layers_photoshop_can_edit() {
     // Installed fonts only, so the test downloads none.
     let renderer = Renderer::new(RendererConfig {
         font_families: Vec::new(),
+        favorite_fonts: Vec::new(),
     });
     if let Err(error) = Gpu::get() {
         eprintln!("skipped without a GPU: {error}");

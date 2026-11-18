@@ -295,6 +295,7 @@ pub(crate) fn type_layer(layer: &Text, text: &ResolvedText, index: i32) -> Vec<T
         align: text.align,
         rtl: text.rtl,
         leading: f64::from(text.line_height),
+        tracking: (text.letter_spacing * 1000.0).round() as i32,
         vertical,
         shape,
     });

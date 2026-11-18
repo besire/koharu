@@ -7,6 +7,7 @@ import type {
   LayerId,
   Model,
   PageId,
+  PageSummary,
   PipelineEvent,
   Preferences,
   Rgba,
@@ -239,6 +240,18 @@ export function receiveModels(models: Model[]): void {
 
 export function receiveError(message: string): void {
   toast.add({ type: 'error', title: 'Could not complete that action', description: message })
+}
+
+/** Keeps only existing page IDs selected, falling back to `activePage` when none stay valid. */
+export function reconcileSelectedPages(
+  selectedPages: PageId[],
+  pages: PageSummary[],
+  activePage: PageId | null | undefined,
+): PageId[] {
+  const existing = new Set(pages.map((page) => page.id))
+  const valid = selectedPages.filter((page) => existing.has(page))
+  if (valid.length > 0) return valid
+  return activePage && existing.has(activePage) ? [activePage] : []
 }
 
 /** A CSS hex colour as the canvas's straight RGBA, from 0 to 1. */

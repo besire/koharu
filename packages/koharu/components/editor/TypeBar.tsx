@@ -8,6 +8,7 @@ import {
   Italic,
   Minus,
   Plus,
+  SlidersHorizontal,
   SquareSlash,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -83,6 +84,8 @@ export function TypeBar() {
   const { t } = useTranslation()
   const tool = useKoharuStore((state) => state.tool)
   const borderWidthId = useId()
+  const lineHeightId = useId()
+  const letterSpacingId = useId()
   const page = usePage().data
   const selectedIds = useKoharuStore((state) => state.selectedLayers)
   const defaultFont = useKoharuStore(
@@ -167,6 +170,8 @@ export function TypeBar() {
   const weight = chars.weight ?? 400
   const weights = usableFontWeights(selectedFamily, italic)
   const size = mixed.has('size') ? null : Math.round((chars.size ?? 24) * 100) / 100
+  const lineHeight = Math.round((style.line_height ?? 1.2) * 100) / 100
+  const letterSpacing = Math.round((style.letter_spacing ?? 0) * 100) / 100
   const strokeWidth = chars.stroke_width ?? 0
   const stroke = chars.stroke ?? null
   const strokeEnabled = stroke !== null && stroke[3] > 0 && strokeWidth > 0
@@ -343,6 +348,90 @@ export function TypeBar() {
           <TooltipTrigger
             render={
               <PopoverTrigger
+                disabled={!paragraph}
+                aria-label={t('inspector.spacing')}
+                className='grid size-6 shrink-0 place-items-center rounded-md border border-input bg-background text-muted-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-40'
+              />
+            }
+          >
+            <SlidersHorizontal aria-hidden='true' className='size-3.5' />
+          </TooltipTrigger>
+          <TooltipContent>{t('inspector.spacing')}</TooltipContent>
+        </Tooltip>
+        <PopoverContent side='bottom' align='end' className='w-auto gap-2 rounded-xl p-2'>
+          <div className='grid grid-cols-2 gap-1.5'>
+            <label className='grid gap-1 text-[9px] font-medium text-muted-foreground'>
+              {t('inspector.lineHeight')}
+              <NumberField
+                id={lineHeightId}
+                name='line-height'
+                className='w-24'
+                value={lineHeight}
+                min={0.5}
+                max={4}
+                step={0.05}
+                onValueChange={(next) => {
+                  if (next !== null && next >= 0.5 && next <= 4) {
+                    apply({ line_height: next })
+                  }
+                }}
+              >
+                <NumberFieldGroup>
+                  <NumberFieldDecrement aria-label={t('inspector.decreaseLineHeight')}>
+                    <Minus />
+                  </NumberFieldDecrement>
+                  <NumberFieldInput
+                    aria-label={t('inspector.lineHeight')}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') event.currentTarget.blur()
+                    }}
+                  />
+                  <NumberFieldIncrement aria-label={t('inspector.increaseLineHeight')}>
+                    <Plus />
+                  </NumberFieldIncrement>
+                </NumberFieldGroup>
+              </NumberField>
+            </label>
+            <label className='grid gap-1 text-[9px] font-medium text-muted-foreground'>
+              {t('inspector.letterSpacing')}
+              <NumberField
+                id={letterSpacingId}
+                name='letter-spacing'
+                className='w-24'
+                value={letterSpacing}
+                min={-0.2}
+                max={1}
+                step={0.02}
+                onValueChange={(next) => {
+                  if (next !== null && next >= -0.2 && next <= 1) {
+                    apply({ letter_spacing: next })
+                  }
+                }}
+              >
+                <NumberFieldGroup>
+                  <NumberFieldDecrement aria-label={t('inspector.decreaseLetterSpacing')}>
+                    <Minus />
+                  </NumberFieldDecrement>
+                  <NumberFieldInput
+                    aria-label={t('inspector.letterSpacing')}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') event.currentTarget.blur()
+                    }}
+                  />
+                  <NumberFieldIncrement aria-label={t('inspector.increaseLetterSpacing')}>
+                    <Plus />
+                  </NumberFieldIncrement>
+                </NumberFieldGroup>
+              </NumberField>
+            </label>
+          </div>
+        </PopoverContent>
+      </Popover>
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <PopoverTrigger
                 aria-label={t('inspector.border')}
                 className='grid size-6 shrink-0 place-items-center rounded-md border border-input bg-background text-muted-foreground hover:bg-muted'
               />
@@ -399,7 +488,12 @@ export function TypeBar() {
                 <NumberFieldDecrement aria-label={t('inspector.decreaseBorderWidth')}>
                   <Minus />
                 </NumberFieldDecrement>
-                <NumberFieldInput aria-label={t('inspector.borderWidth')} />
+                <NumberFieldInput
+                  aria-label={t('inspector.borderWidth')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur()
+                  }}
+                />
                 <NumberFieldIncrement aria-label={t('inspector.increaseBorderWidth')}>
                   <Plus />
                 </NumberFieldIncrement>
@@ -553,6 +647,9 @@ function FontSizeField({
           aria-label={t('inspector.fontSize')}
           placeholder={autoFit ? t('inspector.auto') : undefined}
           className='px-1.5 text-left text-ellipsis'
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
         />
         <DropdownMenu>
           <DropdownMenuTrigger

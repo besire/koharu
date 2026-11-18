@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "لون الفرشاة",
     "hexCode": "رمز اللون الست عشري",
+    "recent": "الألوان الأخيرة",
     "sampleCanvas": "اختيار لون من اللوحة",
     "transparent": "شفاف"
   },
@@ -93,12 +94,14 @@
   },
   "fontPicker": {
     "choose": "اختر خطًا",
+    "favorite": "تثبيت {{family}}",
     "fontCount": "{{count}} خط",
     "fontCount_one": "{{count}} خط",
     "fontCount_other": "{{count}} خط",
     "fonts": "الخطوط",
     "noResults": "لا توجد خطوط تطابق هذا البحث",
-    "search": "ابحث عن خطوط"
+    "search": "ابحث عن خطوط",
+    "unfavorite": "إلغاء تثبيت {{family}}"
   },
   "history": {
     "close": "إغلاق السجل",
@@ -173,6 +176,8 @@
     "borderWidth": "عرض الحدود",
     "chooseFontSize": "اختر حجم الخط",
     "decreaseBorderWidth": "تقليل عرض الحدود",
+    "decreaseLetterSpacing": "تقليل تباعد الأحرف",
+    "decreaseLineHeight": "تقليل ارتفاع السطر",
     "font": "الخط",
     "fontSize": "حجم الخط",
     "fontStyles": {
@@ -182,9 +187,16 @@
     "fontWeight": "وزن الخط",
     "horizontal": "أفقي",
     "increaseBorderWidth": "زيادة عرض الحدود",
+    "increaseLetterSpacing": "زيادة تباعد الأحرف",
+    "increaseLineHeight": "زيادة ارتفاع السطر",
+    "letterSpacing": "التباعد",
+    "lineHeight": "تباعد الأسطر",
+    "notePlaceholder": "سياق أو إرشادات لترجمة هذه الكتلة…",
     "opacity": "العتامة",
+    "runOcr": "تشغيل OCR",
     "selectPage": "اختر صفحة لعرض طبقاتها.",
     "source": "النص المصدر",
+    "spacing": "تباعد الأسطر والأحرف",
     "text": "نص",
     "textColor": "لون النص",
     "textDirection": "اتجاه النص",
@@ -224,6 +236,7 @@
     },
     "lock": "قفل {{name}}",
     "locked": "مقفل",
+    "noteLabel": "ملاحظة ترجمة {{name}}",
     "opacityLabel": "عتامة {{name}}",
     "parts": {
       "cleanup": "تنظيف",
@@ -262,8 +275,10 @@
     "view": "عرض"
   },
   "model": {
+    "autoDetect": "كشف تلقائي",
     "baseUrl": "عنوان URL الأساسي",
     "default": "افتراضي",
+    "sourceLanguage": "اللغة المصدر",
     "targetLanguage": "اللغة المستهدفة"
   },
   "modelPicker": {
@@ -298,6 +313,7 @@
     "selected": "{{count}} محدّد"
   },
   "outputPicker": {
+    "sourceLanguage": "اللغة المصدر",
     "targetLanguage": "اللغة المستهدفة",
     "title": "مخرجات الترجمة"
   },
@@ -376,10 +392,22 @@
       "thresholds": "العتبات",
       "title": "خط المعالجة",
       "translator": {
+        "addTerm": "إضافة مصطلح",
+        "deletePreset": "حذف الإعداد المسبق",
+        "glossary": "المسرد",
+        "glossaryDescription": "حافظ على اتساق أسماء الشخصيات والمصطلحات المتكررة عبر الصفحات.",
+        "glossaryNote": "ملاحظة اختيارية",
+        "glossarySource": "المصطلح الأصلي",
+        "glossaryTarget": "الترجمة المفضلة",
         "instructions": "تعليمات إضافية",
         "instructionsDescription": "اختيارية، بأي لغة وأي صيغة، مثل طريقة كتابة اسم أو نبرة الأسلوب. يضيفها Koharu كما هي بعد موجّه النظام الخاص به.",
+        "presetName": "اسم الإعداد المسبق",
+        "presets": "الإعدادات المحفوظة",
         "reasoning": "التفكير",
         "reasoningDescription": "استخدام تفكير النموذج أثناء الترجمة.",
+        "removeTerm": "إزالة المصطلح",
+        "savePreset": "حفظ الإعداد المسبق",
+        "sourceLanguageDescription": "تجاوز الكشف التلقائي عن اللغة المصدر عند الحاجة.",
         "targetLanguageDescription": "اختر اللغة التي تُترجم إليها النصوص.",
         "vision": "الرؤية",
         "visionDescription": "تزويد النموذج اللغوي بصور الصفحات أثناء الترجمة."

@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 fn renderer() -> Renderer {
     Renderer::new(RendererConfig {
         font_families: Vec::new(),
+        favorite_fonts: Vec::new(),
     })
 }
 

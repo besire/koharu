@@ -17,6 +17,8 @@ pub(super) struct Styled {
     pub align: Align,
     /// A multiple of each line's largest size.
     pub line_height: f32,
+    /// Extra advance per glyph as a multiple of font size (em).
+    pub letter_spacing: f32,
     /// The patterns that hyphenate the text's language, when it has some.
     pub hyphenation: Option<Lang>,
     /// Its language is Chinese, whose vertical stop marks sit in the middle
@@ -71,6 +73,7 @@ impl Styled {
             vertical: text.direction == Direction::Vertical,
             align: text.style.align.unwrap_or_default(),
             line_height: text.style.line_height.unwrap_or(1.2) as f32,
+            letter_spacing: text.style.letter_spacing.unwrap_or(0.0) as f32,
             // By the language's two-letter code.
             hyphenation: text
                 .language

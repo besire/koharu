@@ -61,6 +61,9 @@ pub struct TextStyle {
     /// A paragraph key: a multiple of each line's largest size.
     #[serde(default)]
     pub line_height: Option<f64>,
+    /// A paragraph key: extra advance per glyph as a multiple of font size (em).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub letter_spacing: Option<f64>,
 }
 
 /// Text as spans in order, each with its marks, so no mark can fall outside the

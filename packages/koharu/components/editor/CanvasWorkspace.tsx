@@ -11,8 +11,9 @@ import { StatusBar } from '@/components/editor/StatusBar'
 import { ToolBar } from '@/components/editor/ToolBar'
 import { TypeBar } from '@/components/editor/TypeBar'
 import { dispatch } from '@/lib/backend'
+import { expandLayerSelection, findLayer, findPart, isLockedLayer } from '@/lib/document'
 import { usePage } from '@/lib/queries'
-import { deleteSelection } from '@/lib/scene'
+import { deleteSelection, nudgeLayers } from '@/lib/scene'
 import { hexToRgba, toolKeys, useKoharuStore, type CanvasTool } from '@/lib/store'
 import { commands, type Rgba } from '@koharu/ipc/protocol'
 
@@ -92,13 +93,14 @@ export function CanvasWorkspace() {
 
   useEffect(() => {
     const editable = (target: EventTarget | null) =>
-      target instanceof HTMLInputElement ||
+      (target instanceof HTMLInputElement && target.type !== 'range') ||
       target instanceof HTMLTextAreaElement ||
       (target instanceof HTMLElement && target.isContentEditable)
     // The tool Space replaced, put back when it's released, as Photoshop's hand tool.
     let held: CanvasTool | null = null
 
     const down = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return
       if (event.key === 'Alt') {
         event.preventDefault()
         return
@@ -144,6 +146,42 @@ export function CanvasWorkspace() {
       if (event.key === 'Escape') {
         colorSampling?.cancel()
         state.selectLayers([])
+        return
+      }
+      const targetEl = event.target instanceof HTMLElement ? event.target : null
+      const onSlider =
+        (event.target instanceof HTMLInputElement && event.target.type === 'range') ||
+        targetEl?.getAttribute('role') === 'slider'
+      if (
+        !onSlider &&
+        !state.typing &&
+        page &&
+        state.selectedLayers.length > 0 &&
+        !command &&
+        !event.altKey &&
+        (event.key === 'ArrowLeft' ||
+          event.key === 'ArrowRight' ||
+          event.key === 'ArrowUp' ||
+          event.key === 'ArrowDown')
+      ) {
+        const step = event.shiftKey ? 10 : 1
+        const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0
+        const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0
+        const leaves = expandLayerSelection(page.layers, state.selectedLayers).filter((id) => {
+          const placed = findLayer(page.layers, id)
+          return placed !== undefined && !isLockedLayer(placed)
+        })
+        const parts = state.selectedLayers.filter((id) => {
+          const part = findPart(page.layers, id)
+          if (!part) return false
+          const block = findLayer(page.layers, part.block.id)
+          return block !== undefined && !isLockedLayer(block)
+        })
+        const targets = [...new Set([...leaves, ...parts])]
+        if (targets.length > 0) {
+          event.preventDefault()
+          dispatch(nudgeLayers, targets, dx, dy)
+        }
         return
       }
       if (command || event.altKey) return

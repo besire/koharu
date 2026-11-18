@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { receiveDownload, useKoharuStore } from '@/lib/store'
+import { receiveDownload, reconcileSelectedPages, useKoharuStore } from '@/lib/store'
 
 describe('editor state', () => {
   it('retains failed downloads until they are dismissed', () => {
@@ -23,5 +23,26 @@ describe('editor state', () => {
 
   it('defaults paint brush color to pure white (#FFFFFF)', () => {
     expect(useKoharuStore.getState().brush.color).toBe('#FFFFFF')
+  })
+
+  it('prunes deleted page IDs and falls back to the active page when importing fresh pages', () => {
+    const pageB = {
+      id: 'page-b',
+      name: 'b.png',
+      size: { width: 100, height: 100 },
+      background: null,
+    }
+    const pageC = {
+      id: 'page-c',
+      name: 'c.png',
+      size: { width: 100, height: 100 },
+      background: null,
+    }
+
+    expect(reconcileSelectedPages(['deleted-page'], [], null)).toEqual([])
+    expect(reconcileSelectedPages(['deleted-page'], [pageB], 'page-b')).toEqual(['page-b'])
+    expect(reconcileSelectedPages(['deleted-page', 'page-c'], [pageB, pageC], 'page-b')).toEqual([
+      'page-c',
+    ])
   })
 })

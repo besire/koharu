@@ -47,6 +47,7 @@
   "colorPicker": {
     "brushColor": "Cor do pincel",
     "hexCode": "Código hexadecimal da cor",
+    "recent": "Cores recentes",
     "sampleCanvas": "Escolher cor da tela",
     "transparent": "Transparente"
   },
@@ -93,12 +94,14 @@
   },
   "fontPicker": {
     "choose": "Escolher uma fonte",
+    "favorite": "Fixar {{family}}",
     "fontCount": "{{count}} fontes",
     "fontCount_one": "{{count}} fonte",
     "fontCount_other": "{{count}} fontes",
     "fonts": "Fontes",
     "noResults": "Nenhuma fonte corresponde à busca",
-    "search": "Buscar fontes"
+    "search": "Buscar fontes",
+    "unfavorite": "Desafixar {{family}}"
   },
   "history": {
     "close": "Fechar histórico",
@@ -173,6 +176,8 @@
     "borderWidth": "Largura do contorno",
     "chooseFontSize": "Escolher tamanho da fonte",
     "decreaseBorderWidth": "Diminuir largura do contorno",
+    "decreaseLetterSpacing": "Diminuir espaçamento entre letras",
+    "decreaseLineHeight": "Diminuir altura da linha",
     "font": "Fonte",
     "fontSize": "Tamanho da fonte",
     "fontStyles": {
@@ -182,9 +187,16 @@
     "fontWeight": "Peso da fonte",
     "horizontal": "Horizontal",
     "increaseBorderWidth": "Aumentar largura do contorno",
+    "increaseLetterSpacing": "Aumentar espaçamento entre letras",
+    "increaseLineHeight": "Aumentar altura da linha",
+    "letterSpacing": "Espaçamento",
+    "lineHeight": "Entrelinha",
+    "notePlaceholder": "Contexto ou instruções para traduzir este bloco…",
     "opacity": "Opacidade",
+    "runOcr": "Executar OCR",
     "selectPage": "Selecione uma página para inspecionar suas camadas.",
     "source": "Texto original",
+    "spacing": "Entrelinha e espaçamento",
     "text": "Texto",
     "textColor": "Cor do texto",
     "textDirection": "Direção do texto",
@@ -224,6 +236,7 @@
     },
     "lock": "Bloquear {{name}}",
     "locked": "Bloqueada",
+    "noteLabel": "Nota de tradução de {{name}}",
     "opacityLabel": "Opacidade de {{name}}",
     "parts": {
       "cleanup": "Limpeza",
@@ -262,8 +275,10 @@
     "view": "Exibir"
   },
   "model": {
+    "autoDetect": "Detecção automática",
     "baseUrl": "URL base",
     "default": "Padrão",
+    "sourceLanguage": "Idioma de origem",
     "targetLanguage": "Idioma de destino"
   },
   "modelPicker": {
@@ -298,6 +313,7 @@
     "selected": "{{count}} selecionadas"
   },
   "outputPicker": {
+    "sourceLanguage": "Idioma de origem",
     "targetLanguage": "Idioma de destino",
     "title": "Saída da tradução"
   },
@@ -376,10 +392,22 @@
       "thresholds": "Limites",
       "title": "Pipeline",
       "translator": {
+        "addTerm": "Adicionar termo",
+        "deletePreset": "Excluir predefinição",
+        "glossary": "Glossário",
+        "glossaryDescription": "Mantenha nomes de personagens e termos recorrentes consistentes entre as páginas.",
+        "glossaryNote": "Nota opcional",
+        "glossarySource": "Termo original",
+        "glossaryTarget": "Tradução preferida",
         "instructions": "Instruções adicionais",
         "instructionsDescription": "Opcionais, em qualquer idioma e formato, como a grafia de um nome ou o tom. O Koharu as acrescenta como estão após o próprio prompt de sistema.",
+        "presetName": "Nome da predefinição",
+        "presets": "Predefinições salvas",
         "reasoning": "Raciocínio",
         "reasoningDescription": "Usa o raciocínio do modelo durante a tradução.",
+        "removeTerm": "Remover termo",
+        "savePreset": "Salvar predefinição",
+        "sourceLanguageDescription": "Substitua a detecção automática do idioma de origem quando necessário.",
         "targetLanguageDescription": "Escolha o idioma para o qual o texto será traduzido.",
         "vision": "Visão",
         "visionDescription": "Fornece imagens das páginas ao LLM durante a tradução."

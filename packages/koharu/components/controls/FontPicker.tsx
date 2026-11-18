@@ -1,11 +1,13 @@
 'use client'
 
 import { observeElementRect, useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronDown, Search, X } from 'lucide-react'
+import { ChevronDown, Search, Star, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { savePreferences } from '@/lib/backend'
 import { useFontPreview } from '@/lib/queries'
+import { useKoharuStore } from '@/lib/store'
 import type { FontFamily } from '@koharu/ipc/protocol'
 import { Button } from '@koharu/ui/components/button'
 import { Empty, EmptyTitle } from '@koharu/ui/components/empty'
@@ -26,31 +28,63 @@ const listHeight = 248
 export function FontPicker({
   value,
   families,
+  favorites,
   disabled,
   size = 'default',
   ariaLabel,
   placeholder,
   onChange,
+  onFavoritesChange,
 }: {
   value: string
   families: FontFamily[]
+  favorites?: string[]
   disabled?: boolean
   size?: 'default' | 'sm'
   ariaLabel?: string
   placeholder?: string
   onChange: (family: string) => void
+  onFavoritesChange?: (favorites: string[]) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const input = useRef<HTMLInputElement>(null)
+  const preferences = useKoharuStore((state) => state.preferences)
+  const storedFavorites = preferences?.renderer.favorite_fonts
+  const favoriteNames = useMemo(
+    () => favorites ?? storedFavorites ?? [],
+    [favorites, storedFavorites],
+  )
+  const favoriteSet = useMemo(() => new Set(favoriteNames.map(normalizeFontName)), [favoriteNames])
   const orderedFamilies = useMemo(
     () =>
-      [...families].sort((left, right) =>
-        left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' }),
-      ),
-    [families],
+      [...families].sort((left, right) => {
+        const leftPinned = favoriteSet.has(normalizeFontName(left.name))
+        const rightPinned = favoriteSet.has(normalizeFontName(right.name))
+        if (leftPinned !== rightPinned) return leftPinned ? -1 : 1
+        return left.name.localeCompare(right.name, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      }),
+    [families, favoriteSet],
   )
+  const toggleFavorite = (family: string) => {
+    const key = normalizeFontName(family)
+    const next = favoriteSet.has(key)
+      ? favoriteNames.filter((candidate) => normalizeFontName(candidate) !== key)
+      : [...favoriteNames, family]
+    if (onFavoritesChange) {
+      onFavoritesChange(next)
+      return
+    }
+    if (!preferences) return
+    void savePreferences({
+      ...preferences,
+      renderer: { ...preferences.renderer, favorite_fonts: next },
+    }).catch(() => undefined)
+  }
   const results = useMemo(() => {
     const normalized = normalizeFontName(query)
     return orderedFamilies.filter(
@@ -137,6 +171,9 @@ export function FontPicker({
             key={query}
             families={results}
             value={value}
+            favoriteSet={favoriteSet}
+            canFavorite={Boolean(onFavoritesChange || preferences)}
+            onToggleFavorite={toggleFavorite}
             onSelect={(family) => {
               onChange(family)
               setOpen(false)
@@ -151,10 +188,16 @@ export function FontPicker({
 function FontList({
   families,
   value,
+  favoriteSet,
+  canFavorite,
+  onToggleFavorite,
   onSelect,
 }: {
   families: FontFamily[]
   value: string
+  favoriteSet: Set<string>
+  canFavorite: boolean
+  onToggleFavorite: (family: string) => void
   onSelect: (family: string) => void
 }) {
   const { t } = useTranslation()
@@ -197,28 +240,54 @@ function FontList({
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const family = families[virtualRow.index]
           if (!family) return null
-          const selected = normalizeFontName(family.name) === normalizeFontName(value)
+          const normalized = normalizeFontName(family.name)
+          const selected = normalized === normalizeFontName(value)
+          const pinned = favoriteSet.has(normalized)
           return (
-            <button
+            <div
               key={virtualRow.key}
-              type='button'
-              role='option'
-              aria-label={family.name}
-              aria-selected={selected}
               className={cn(
-                'absolute inset-x-0 top-0 flex h-9.5 w-full items-center px-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
+                'group absolute inset-x-0 top-0 flex h-9.5 w-full items-center hover:bg-accent',
                 selected && 'bg-accent text-accent-foreground',
               )}
               style={{ transform: `translateY(${virtualRow.start}px)` }}
-              onClick={() => onSelect(family.name)}
             >
-              <div className='flex min-w-0 flex-1 flex-col justify-center gap-px'>
-                <FontPreviewLabel family={family} className='h-4.5 w-full min-w-0' />
-                <span className='min-w-0 truncate text-[8px] leading-none text-muted-foreground'>
-                  {family.name}
-                </span>
-              </div>
-            </button>
+              <button
+                type='button'
+                role='option'
+                aria-label={family.name}
+                aria-selected={selected}
+                className='flex h-full min-w-0 flex-1 items-center pr-1 pl-2 text-left focus-visible:bg-accent focus-visible:outline-none'
+                onClick={() => onSelect(family.name)}
+              >
+                <div className='flex min-w-0 flex-1 flex-col justify-center gap-px'>
+                  <FontPreviewLabel family={family} className='h-4.5 w-full min-w-0' />
+                  <span className='min-w-0 truncate text-[8px] leading-none text-muted-foreground'>
+                    {family.name}
+                  </span>
+                </div>
+              </button>
+              {canFavorite && (
+                <button
+                  type='button'
+                  aria-label={
+                    pinned
+                      ? t('fontPicker.unfavorite', { family: family.name })
+                      : t('fontPicker.favorite', { family: family.name })
+                  }
+                  aria-pressed={pinned}
+                  className={cn(
+                    'mr-1 grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none',
+                    pinned
+                      ? 'text-amber-400 opacity-100 hover:text-amber-400'
+                      : 'opacity-0 group-hover:opacity-100',
+                  )}
+                  onClick={() => onToggleFavorite(family.name)}
+                >
+                  <Star className={cn('size-3', pinned && 'fill-current')} />
+                </button>
+              )}
+            </div>
           )
         })}
       </div>
